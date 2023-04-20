@@ -1,8 +1,16 @@
-# Rouguelike final update (14 Jan 2023)
+# Rouguelike
 
-![](http://static1.squarespace.com/static/5628419be4b0919906577165/t/56b90111f8508214b89b5751/1454965106563/katana_kittens-the_hunt-puppygrenade_com.jpg?format=2500w)
+> *Final update (14 Jan 2023):*
+>
+> Did my best to make my code as readable as possible, so I won't be going into what each file does.
 
-Did my best to make my code as readable as possible, so I won't be going into what each file does.
+<h3>Technologies used:</h3>
+
+<p align="left">
+<img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" width="50" height="50"/>
+</p>
+
+<h2>Abstract</h2>
 
 This is the final iteration of a small game I worked on over the span of 2 consecutive days, in an effort to familiarise myself with OOP. This game is to be played in Command Prompt.
 To try it, download all the files within this folder, make sure they're in the same file directory, and run `input.py`. Make sure you have Python3 or later versions installed!
@@ -17,6 +25,8 @@ To try it, download all the files within this folder, make sure they're in the s
 4. Much of the HUD display for the user is hard coded. Refactoring them into functions for greater reusabilty would be ideal.
 
 ----------
+
+## Reflections:
 
 That said, this was a refreshing learning experience, and working on a longer-form project that I was passionate about was fulfilling. Hope to do something like this again soon. If there's anything you feel could be improved, please don't hesistate to contact me on Twitter or my other socials. Thanks!
 
