@@ -1,4 +1,4 @@
-# rouguelike
+# roguelike
 
 ## abstract
 
