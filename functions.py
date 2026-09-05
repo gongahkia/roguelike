@@ -393,7 +393,7 @@ def attackcoordinates (enemy):
 
     if isinstance(enemy, necromancer):
         model = enemy.attackloadmodel
-        if enemy.attackcounter == 2:
+        if enemy.attackcounter == 2 or enemy.attackcounter == 3:
             model = enemy.attacksquaremodel1
         if enemy.attackcounter == 4:
             model = enemy.attacksquaremodel2
