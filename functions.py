@@ -469,6 +469,44 @@ def updatedict (player, targets = None, necromancers = None, bullets = None, bom
     return entitydict
 
 
+def visiblecoordinates (player, space, radius = 5):
+    visible = set()
+    queue = deque([(tuple(player.location),0)])
+    while len(queue) > 0:
+        coordinate,distance = queue.popleft()
+        if coordinate in visible or distance > radius:
+            continue
+        visible.add(coordinate)
+        if coordinate not in space:
+            continue
+        xcoord,ycoord = coordinate
+        for adjacent in [(xcoord,ycoord + 1),(xcoord - 1,ycoord),(xcoord,ycoord - 1),(xcoord + 1,ycoord)]:
+            if adjacent[0] >= 0 and adjacent[0] < BOARDWIDTH and adjacent[1] >= 0 and adjacent[1] < BOARDHEIGHT:
+                if adjacent not in visible:
+                    queue.append((adjacent,distance + 1))
+    return visible
+
+
+def fogdict (entitydict, space, visible, explored):
+    foggeddict = {}
+    for x in range(BOARDWIDTH):
+        for y in range(BOARDHEIGHT):
+            coordinate = (x,y)
+            if coordinate in visible:
+                if coordinate in entitydict:
+                    foggeddict[coordinate] = entitydict[coordinate]
+                elif coordinate not in space:
+                    foggeddict[coordinate] = '#'
+            elif coordinate in explored:
+                if coordinate in space:
+                    foggeddict[coordinate] = '.'
+                else:
+                    foggeddict[coordinate] = '#'
+            else:
+                foggeddict[coordinate] = '?'
+    return foggeddict
+
+
 def printscreen (lines):
     print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
     for line in lines:
