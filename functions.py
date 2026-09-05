@@ -1,21 +1,26 @@
 import random
 import time
 
+
+#GAME SETTINGS
+
+BOARDWIDTH = 41
+BOARDHEIGHT = 19
+
+
 #CLASS OBJECTS
 
 class player:
 
-    def __init__ (self, health = 2, location =  [20,9]):
-        #print ('player is instantiated')
+    def __init__ (self, health = 2, location = None):
         self.health = health
-        self.location = location
+        self.location = [20,9] if location is None else list(location)
         self.model= '^'
         self.ammo = 1
         self.score = 0
         self.bombs = 0
         self.status = 'alive'
         self.notice = ''
-        #attack state is 1, upon attacking, it becomes zero, and requires one movement to recover
 
     def face (self, face:str):
         if face == 'w':
@@ -26,8 +31,6 @@ class player:
             self.model = 'V'
         elif face == 'd':
             self.model = '>'
-        else:
-            pass
 
     def movement (self, direction:str):
         if direction == 'w':
@@ -38,154 +41,145 @@ class player:
             self.location[1] -= 1
         elif direction == 'd':
             self.location[0] += 1
-        else:
-            pass
-    
+
     def shoot (self):
         if self.ammo <= 0:
-            print ('No more ammo!')
-        else:
-            self.ammo -= 1
+            return False
+        self.ammo -= 1
+        return True
 
-    def reload (self):
-        self.ammo += 1
-        
+    def reload (self, amount = 1):
+        self.ammo += amount
+
     def attacked (self):
         self.health -= 1
         if self.health <= 0:
             self.health = 0
             self.model = 'F'
             self.status = 'dead\n\n               ~GAME OVER~               \n            THANKS FOR PLAYING            '
-            
 
     def deconstruct (self):
         self.model=''
 
+
 class bullet:
 
     def __init__ (self, playermodel, playerlocation):
-        #print ('bullet is instantiated')
         self.model = '&'
+        self.location = list(playerlocation)
+        self.active = False
+
         if playermodel == '^':
             self.direction = 'up'
-            self.location = [playerlocation[0],playerlocation[1]+1]
-
-        if playermodel == 'V':
+            self.location[1] += 1
+        elif playermodel == 'V':
             self.direction = 'down'
-            self.location = [playerlocation[0],playerlocation[1]-1]
-
-        if playermodel == '<':
+            self.location[1] -= 1
+        elif playermodel == '<':
             self.direction = 'left'
-            self.location = [playerlocation[0]-1,playerlocation[1]]
-
-        if playermodel == '>':
+            self.location[0] -= 1
+        elif playermodel == '>':
             self.direction = 'right'
-            self.location = [playerlocation[0]+1,playerlocation[1]]     
+            self.location[0] += 1
 
     def movement (self):
         if self.direction == 'up':
             self.location[1] += 1
-
-        if self.direction == 'down':
+        elif self.direction == 'down':
             self.location[1] -= 1
-
-        if self.direction == 'left':
+        elif self.direction == 'left':
             self.location[0] -= 1
-
-        if self.direction == 'right':
+        elif self.direction == 'right':
             self.location[0] += 1
 
-    def collision (self):
-        self.model = '*'
 
-    def disappear (self):
-        self.model = ' '
+class bomb:
+
+    def __init__ (self, location, fuse = 3, radius = 2):
+        self.location = list(location)
+        self.model = 'B'
+        self.fuse = fuse
+        self.radius = radius
+
+    def tick (self):
+        self.fuse -= 1
+        return self.fuse <= 0
+
 
 class ammo:
 
-    def __init__(self, model = 'a'):
-        #print ('ammo is instantiated')
-        self.location = [(random.randint(1,40)),(random.randint(1,18))]
+    def __init__(self, location = None, model = 'a'):
+        self.location = randomlocation() if location is None else list(location)
         self.model = model
 
     def destroyed (self):
         self.model = ' '
+
 
 class target:
 
-    def __init__(self, location = [40,18], model = 't'):
-        #print ('target is instantiated')
-        self.location = [(random.randint(1,40)),(random.randint(1,18))]
-        #print (self.location)
-        #self.location = location
+    def __init__(self, location = None, model = 't'):
+        self.location = randomlocation() if location is None else list(location)
         self.model = model
 
     def destroyed (self):
         self.model = ' '
 
+
 class necromancer:
-    
-    def __init__ (self, model = 'N', health = 3):
-        #print ('Necromancer is instantiated')
-        self.location = [(random.randint(1,40)),(random.randint(1,18))]
+
+    def __init__ (self, location = None, model = 'N', health = 3):
+        self.location = randomlocation() if location is None else list(location)
         self.model = model
         self.attacksquaremodel1 = '!'
         self.attacksquaremodel2 = '#'
         self.health = health
         self.xcoord = self.location [0]
-        self.ycoord = self.location [1]
         self.attackcounter = 0
 
     def attack (self):
         self.attackcounter += 1
         if self.attackcounter > 2:
-            self.attackcounter = 0 
-    #0 is for intiial spawn state, 1 is for forecasted attack where attacked squares become '!', 2 is for attack, where attacked squares become '#' and deal damage
-        
-    def collision (self):
-        self.model = '*'
+            self.attackcounter = 0
+    #0 is safe, 1 is a forecasted attack, and 2 deals damage
 
-    def damaged (self):
-        self.health -= 1
+    def damaged (self, amount = 1):
+        self.health -= amount
 
     def destroyed (self):
         self.model = ' '
 
+
 class boss:
 
     def __init__ (self, health = 10, model = '~(〃￣ω￣〃)~'):
-        print ('boss is instantiated')
-        self.location = [(random.randint(1,40)),(random.randint(1,19))]
-        self.location2 = [(random.randint(0,41)),(random.randint(1,19))]
+        self.location = [14,1]
         self.health = health
         self.model = model
         self.attacksqmodel1 = '!'
         self.attacksqmodel2 = '#'
-        self.xcoord = self.location[0]
-        self.ycoord = self.location[1]
-        self.xcoord2 = self.location2[0]
-        self.ycoord2 = self.location2[1]
         self.lines = 'PuNy MoRtAl, yoU dArE cHalLenGE mE?'
-        self.attackcounter = 0        
+        self.attackcounter = 0
+        self.newattack()
 
-    def damaged (self):
-        self.health -= 1
+    def newattack (self):
+        self.xcoord = random.randint(0,BOARDWIDTH - 1)
+        self.ycoord = random.randint(0,BOARDHEIGHT - 1)
+        self.xcoord2 = random.randint(0,BOARDWIDTH - 1)
+        self.ycoord2 = random.randint(0,BOARDHEIGHT - 1)
+
+    def damaged (self, amount = 1):
+        self.health -= amount
 
     def phase2 (self):
-        #self.health = 5-7
-        #length of model = 9
         self.lines = 'pReParE FoR yOuR eTerNaL SuFFeRiNg!'
         self.model = '  ~(◍•ᴗ•◍)~  '
 
     def phase3 (self):
-        #self.health = 2-4
-        #length of model = 9
         self.lines = "Hold on, i need go toliet break pls "
         self.model = ' ヾ(๑╹ꇴ◠๑)ﾉ '
 
     def phase4 (self):
-        #self.health 0-1
-        #length of model = 9
         self.lines = 'Bro give chance pls I first time :('
         self.model = '  ~~(´З`)~~  '
 
@@ -197,931 +191,308 @@ class boss:
         self.attackcounter += 1
         if self.attackcounter > 2:
             self.attackcounter = 0
+            self.newattack()
 
-def interface (player):
-    print(f'\t      HEALTH: {player.health}\n\t      AMMO: {player.ammo}\n\t      SCORE: {player.score}\n\t      PLAYER: {player.status}\n    {player.notice}    ')
 
-#THREATCON 0
+#GENERAL FUNCTIONS
 
-def dictcreator (player, target, ammo):
-    #print (player.location)
-    permdict = {}
-    for y in range (0,19):
+def randomlocation (occupied = None):
+    if occupied is None:
+        occupied = set()
+
+    while True:
+        location = [random.randint(1,BOARDWIDTH - 1),random.randint(1,BOARDHEIGHT - 1)]
+        if tuple(location) not in occupied:
+            return location
+
+
+def clampplayer (player):
+    if player.location[0] < 0:
+        player.location[0] = 0
+    if player.location[0] >= BOARDWIDTH:
+        player.location[0] = BOARDWIDTH - 1
+    if player.location[1] < 0:
+        player.location[1] = 0
+    if player.location[1] >= BOARDHEIGHT:
+        player.location[1] = BOARDHEIGHT - 1
+
+
+def moveplayer (player, user):
+    if player.model == '*':
+        if user in ['w','a','s','d']:
+            player.face(user)
+            player.movement(user)
+        elif user == 'e':
+            player.notice = "~You are immobilized. Can't shoot!~"
+        elif user == 'b':
+            player.notice = "~You are immobilized. Can't plant bombs!~"
+        clampplayer(player)
+        return
+
+    if player.model == '^' and user == 'w':
+        player.movement(user)
+    elif player.model == '<' and user == 'a':
+        player.movement(user)
+    elif player.model == 'V' and user == 's':
+        player.movement(user)
+    elif player.model == '>' and user == 'd':
+        player.movement(user)
+    player.face(user)
+    clampplayer(player)
+
+
+def attackcoordinates (enemy):
+    attackdict = {}
+    if enemy.attackcounter == 0:
+        return attackdict
+
+    model = enemy.attacksquaremodel1 if isinstance(enemy, necromancer) else enemy.attacksqmodel1
+    if enemy.attackcounter == 2:
+        model = enemy.attacksquaremodel2 if isinstance(enemy, necromancer) else enemy.attacksqmodel2
+
+    if isinstance(enemy, necromancer):
+        for y in range(BOARDHEIGHT):
+            attackdict[(enemy.xcoord,y)] = model
+
+    if isinstance(enemy, boss):
+        for x in range(BOARDWIDTH):
+            attackdict[(x,enemy.ycoord)] = model
+            attackdict[(x,enemy.ycoord2)] = model
+        for y in range(BOARDHEIGHT):
+            attackdict[(enemy.xcoord,y)] = model
+            attackdict[(enemy.xcoord2,y)] = model
+    return attackdict
+
+
+def attackplayer (player, enemies):
+    for enemy in enemies:
+        enemy.attack()
+        if enemy.attackcounter == 2:
+            if tuple(player.location) in attackcoordinates(enemy):
+                player.model = '*'
+                player.attacked()
+
+
+def bombcoordinates (item):
+    blast = set()
+    for x in range(item.location[0] - item.radius,item.location[0] + item.radius + 1):
+        for y in range(item.location[1] - item.radius,item.location[1] + item.radius + 1):
+            if abs(x - item.location[0]) + abs(y - item.location[1]) <= item.radius:
+                if x >= 0 and x < BOARDWIDTH and y >= 0 and y < BOARDHEIGHT:
+                    blast.add((x,y))
+    return blast
+
+
+def bosshitbox (enemy):
+    hitbox = set()
+    for x in range(16,25):
+        hitbox.add((x,1))
+    return hitbox
+
+
+def updateboss (enemy):
+    if enemy.health < 2:
+        enemy.phase4()
+    elif enemy.health < 4:
+        enemy.phase3()
+    elif enemy.health < 8:
+        enemy.phase2()
+
+
+#ENTITY LOGGING AND PRINTING
+
+def addentity (entitydict, location, model):
+    if len(model) == 1:
+        coordinate = tuple(location)
+        if coordinate[0] >= 0 and coordinate[0] < BOARDWIDTH and coordinate[1] >= 0 and coordinate[1] < BOARDHEIGHT:
+            entitydict[coordinate] = model
+        return
+
+    for index,char in enumerate(model):
+        coordinate = (location[0] + index,location[1])
+        if coordinate[0] >= 0 and coordinate[0] < BOARDWIDTH:
+            entitydict[coordinate] = char
+
+
+def updatedict (player, targets = None, necromancers = None, bullets = None, bombs = None, ammo = None, enemyboss = None, explosions = None):
+    entitydict = {}
+    targets = [] if targets is None else targets
+    necromancers = [] if necromancers is None else necromancers
+    bullets = [] if bullets is None else bullets
+    bombs = [] if bombs is None else bombs
+    explosions = set() if explosions is None else explosions
+
+    for enemy in necromancers:
+        entitydict.update(attackcoordinates(enemy))
+    if enemyboss is not None:
+        entitydict.update(attackcoordinates(enemyboss))
+    for coordinate in explosions:
+        entitydict[coordinate] = '*'
+    if ammo is not None and ammo.model != ' ':
+        addentity(entitydict,ammo.location,ammo.model)
+    for item in targets:
+        if item.model != ' ':
+            addentity(entitydict,item.location,item.model)
+    for enemy in necromancers:
+        if enemy.model != ' ':
+            addentity(entitydict,enemy.location,enemy.model)
+    for item in bombs:
+        addentity(entitydict,item.location,item.model)
+    if enemyboss is not None:
+        addentity(entitydict,enemyboss.location,enemyboss.model)
+    for item in bullets:
+        addentity(entitydict,item.location,item.model)
+    addentity(entitydict,player.location,player.model)
+    return entitydict
+
+
+def printscreen (lines):
+    print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+    for line in lines:
+        print (f'X{line[:BOARDWIDTH].ljust(BOARDWIDTH)}X')
+    print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+
+
+def printdict (entitydict):
+    lines = []
+    for y in reversed(range(BOARDHEIGHT)):
         string = ''
-        for x in range (0,41):
-            if player.location == [x,y]:
-                string += player.model
-            elif target.location == [x,y]:
-                string += target.model
-            elif ammo.location == [x,y]:
-                string += ammo.model
-            else:
-                string += ' '
-        permdict [y] = string
-    return permdict
+        for x in range(BOARDWIDTH):
+            string += entitydict.get((x,y),' ')
+        lines.append(string)
+    printscreen(lines)
 
-def dictcreatorwbullets (player, target, bullet, ammo):
-    #print (player.location, bullet.location)
-    permdict = {}
-    for y in range (0,19):
-        string = ''
-        for x in range (0,41):
-            if player.location == [x,y]:
-                string += player.model
-            elif bullet.location == [x,y]:
-                string += bullet.model
-            elif target.location == [x,y]:
-                string += target.model 
-            elif ammo.location == [x,y]:
-                string += ammo.model
-            else:
-                string += ' '
-        permdict [y] = string
-    return permdict
 
-#THREATCON 1
+#HUD
 
-def dictcreator3 (player, target1, target2, target3, ammo):
-    #print (player.location)
-    permdict = {}
-    for y in range (0,19):
-        string = ''
-        for x in range (0,41):
-            if player.location == [x,y]:
-                string += player.model
-            elif target1.location == [x,y]:
-                string += target1.model
-            elif target2.location == [x,y]:
-                string += target2.model
-            elif target3.location == [x,y]:
-                string += target3.model
-            elif ammo.location == [x,y]:
-                string += ammo.model
-            else:
-                string += ' '
-        permdict [y] = string
-    return permdict
+def hudlines (player, level = None, enemyboss = None, armedbombs = 0):
+    lines = []
+    if level is not None:
+        lines.append(f'      THREATCON: {level}')
+    if enemyboss is not None:
+        lines.append(f'      BOSS HEALTH: {enemyboss.health}')
+        lines.append(f'    {enemyboss.lines}')
+        lines.append('    -----------------------------------')
+    lines.append(f'      HEALTH: {player.health}')
+    lines.append(f'      AMMO: {player.ammo}')
+    lines.append(f'      BOMBS: {player.bombs}  ARMED: {armedbombs}')
+    lines.append(f'      SCORE: {player.score}')
+    lines.append(f'      PLAYER: {player.status}')
+    if player.notice != '':
+        lines.append(f'    {player.notice}')
+    return lines
 
-def dictcreatorwbullets3 (player, target1, target2, target3, bullet, ammo):
-    #print (player.location, bullet.location)
-    permdict = {}
-    for y in range (0,19):
-        string = ''
-        for x in range (0,41):
-            if player.location == [x,y]:
-                string += player.model
-            elif bullet.location == [x,y]:
-                string += bullet.model
-            elif target1.location == [x,y]:
-                string += target1.model
-            elif target2.location == [x,y]:
-                string += target2.model
-            elif target3.location == [x,y]:
-                string += target3.model 
-            elif ammo.location == [x,y]:
-                string += ammo.model
-            else:
-                string += ' '
-        permdict [y] = string
-    return permdict
 
-#THREATCON 2
+def interface (player, level = None, enemyboss = None, armedbombs = 0):
+    print('\n'.join(hudlines(player,level,enemyboss,armedbombs)))
 
-def dictcreator6 (player, target1, necromancer1, necromancer2, ammo):
-    #print (player.location)
-    permdict = {}
-    for y in range (0,19):
-        string = ''
-        for x in range (0,41):
-            if player.location == [x,y]:
-                string += player.model
-            elif necromancer1.location == [x,y]:
-                string += necromancer1.model
-            elif necromancer2.location == [x,y]:
-                string += necromancer2.model
-            elif target1.location == [x,y]:
-                string += target1.model
-            elif ammo.location == [x,y]:
-                string += ammo.model
-            elif necromancer1.xcoord == x:
-                if necromancer1.attackcounter == 0:
-                    string += ' '
-                if necromancer1.attackcounter == 1:
-                    string += necromancer1.attacksquaremodel1
-                if necromancer1.attackcounter == 2:
-                    string += necromancer1.attacksquaremodel2
-            elif necromancer2.xcoord == x:
-                if necromancer2.attackcounter == 0:
-                    string += ' '
-                if necromancer2.attackcounter == 1:
-                    string += necromancer2.attacksquaremodel1
-                if necromancer2.attackcounter == 2:
-                    string += necromancer2.attacksquaremodel2
-            else:
-                string += ' '
-        permdict [y] = string
-    return permdict
 
-def dictcreatorwbullets6 (player, target1, necromancer1, necromancer2, bullet, ammo):
-    #print (player.location, bullet.location)
-    permdict = {}
-    for y in range (0,19):
-        string = ''
-        for x in range (0,41):
-            if player.location == [x,y]:
-                string += player.model
-            elif bullet.location == [x,y]:
-                string += bullet.model
-            elif necromancer1.location == [x,y]:
-                string += necromancer1.model
-            elif necromancer2.location == [x,y]:
-                string += necromancer2.model
-            elif target1.location == [x,y]:
-                string += target1.model
-            elif ammo.location == [x,y]:
-                string += ammo.model
-            elif necromancer1.xcoord == x:
-                if necromancer1.attackcounter == 0:
-                    string += ' '
-                if necromancer1.attackcounter == 1:
-                    string += necromancer1.attacksquaremodel1
-                if necromancer2.attackcounter == 2:
-                    string += necromancer1.attacksquaremodel2
-            elif necromancer2.xcoord == x:
-                if necromancer2.attackcounter == 0:
-                    string += ' '
-                if necromancer2.attackcounter == 1:
-                    string += necromancer2.attacksquaremodel1
-                if necromancer2.attackcounter == 2:
-                    string += necromancer2.attacksquaremodel2
-            else:
-                string += ' '
-        permdict [y] = string
-    return permdict
+def interface2 (player, enemyboss, armedbombs = 0):
+    interface(player,None,enemyboss,armedbombs)
+
+
+def threatconlvl (threatcon_lvl):
+    lines = []
+    for row in range(8):
+        lines.append('')
+    lines.append('                ~NOTICE~')
+    lines.append(f'   YOU ARE MOVING TO THREATCON LEVEL {threatcon_lvl}')
+    for row in range(8):
+        lines.append('')
+    printscreen(lines)
+
 
 #SHOP
 
 class shop:
     def __init__ (self):
-        self.health = 'O O '
-        self.ammo = '& '
-        self.bombs = ''
-        self.pointer1 = ' --> '
-        self.pointer2 = '     '
-        self.pointer3 = '     '
-        self.spaces1 = '      '
-        self.spaces2 = '        '
-        self.spaces3 = '          '
-        #print ('shop has been instantiated')
+        self.pointer = 0
+        self.items = ['HEALTH','AMMO','BOMBS']
 
-    def buy_health (self,number,points):
-
-        if points <= 0:
-                print ('No more points left to spend. Sell [V] items to buy [B] others.')
-                points = 0
-                time.sleep(1.5)
-                return points
-
-
-        elif len (self.health) >= 10:
-            print ('Max health of 5 reached.')
-            time.sleep(0.75)
-            return points
-    
-        else:
-            for itervar in range (number):
-                self.health += 'O '
-                points -= 1
-            num = int(5-(len(self.health)/2))
-            self.spaces1 = ''
-            for itervar in range(num):
-                self.spaces1 += '  ' 
-            return points
-            
-    #add increase/decrease health to player object
-
-    def sell_health (self,number,points):
-        if len (self.health) <=4:
-            print ('Base Health 2, cannot be sold!')
-            time.sleep(0.75)
-            return points
-
-        elif len (self.health) > 4:
-            for itervar in range (number):
-                self.health = self.health.replace('O ', '', 1)
-                points += 1
-        num = int(5-(len(self.health)/2))
-        self.spaces1 = ''
-        for itervar in range(num):
-            self.spaces1 += '  '
-        return points 
-
-    #add increase/decrease health to player object
-
-    def buy_ammo (self,number,points):
-
-        if points <= 0:
-                print ('No more points left to spend. Sell [V] items to buy [B] others.')
-                points = 0
-                time.sleep(1.5)
-                return points
-
-        elif len (self.ammo) >= 10:
-            print ('Max ammo of 5 reached.')
-            time.sleep(0.75)
-            return points
-
-    
-        else:
-            for itervar in range (number):
-                self.ammo += '& '
-                points -= 1
-
-            num = int(5-(len(self.ammo)/2))
-            self.spaces2 = ''
-            for itervar in range(num):
-                self.spaces2 += '  '
-            return points
-    #add increase/decrease ammo to player object
-
-
-    def sell_ammo (self,number,points):
-        if len(self.ammo) <= 2:
-            print ('Base ammo 1, cannot be sold!')
-            time.sleep(0.75)
-            return points
-
-        elif len(self.ammo) > 2:
-            for itervar in range(number):
-                self.ammo = self.ammo.replace('& ', '', 1)
-                points += 1
-        num = int(5-(len(self.ammo)/2))
-        self.spaces2 = ''
-        for itervar in range(num):
-            self.spaces2 += '  '
-        return points
-    #add increase/decrease ammo to player object
- 
-
-    def buy_bombs (self,number,points):
-
-        if points <= 0:
-                print ('No more points left to spend. Sell [V] items to buy [B] others.')
-                points = 0
-                time.sleep(1.5)
-                return points
-
-        elif len (self.bombs) >= 10:
-            print ('Max number of bombs of 5 reached.')
-            time.sleep(0.75)
-            return points
-
-        else:
-            for itervar in range (number):
-                self.bombs += 'B ' 
-                points -= 1
-
-            num = int(5-(len(self.bombs)/2))
-            self.spaces3 = ''
-            for itervar in range(num):
-                self.spaces3 += '  '
-            return points
-    #add increase/decrease health to player object
-
-    def sell_bombs (self,number,points):
-        if len(self.bombs)<=0:
-            print ('No bombs left to sell!')
-            time.sleep(0.75)
-            return points
-
-        elif len(self.bombs)>0:
-            for itervar in range(number):
-                self.bombs = self.bombs.replace('B ','', 1)
-                points += 1
-        num = int(5-(len(self.bombs)/2))
-        self.spaces3 = ''
-        for itervar in range(num):
-            self.spaces3 += '  '
-        return points
-    #add increase/decrease health to player object
-
-    def pointer (self,direction):
-
-        #current pointer position
-        if self.pointer1 == ' --> ':
-            p = 1
-        if self.pointer2 == ' --> ':
-            p = 2
-        if self.pointer3 == ' --> ':
-            p = 3
-
-        #make pointer '>' that moves per input
+    def move (self, direction):
         if direction == 'w':
-            p -= 1
+            self.pointer -= 1
         if direction == 's':
-            p += 1
+            self.pointer += 1
+        if self.pointer < 0:
+            self.pointer = 0
+        if self.pointer >= len(self.items):
+            self.pointer = len(self.items) - 1
 
-        if p == 0:
-            p = 1  
-        elif p == 4:
-            p = 3
-        
-        if p == 1:
-            self.pointer1 = ' --> '
-            self.pointer2 = '     '
-            self.pointer3 = '     '
-        elif p == 2:
-            self.pointer1 = '     '
-            self.pointer2 = ' --> '
-            self.pointer3 = '     '
-        elif p == 3:
-            self.pointer1 = '     '
-            self.pointer2 = '     '
-            self.pointer3 = ' --> '
+    def itemvalue (self, player, item):
+        if item == 'HEALTH':
+            return player.health
+        if item == 'AMMO':
+            return player.ammo
+        return player.bombs
 
+    def changeitem (self, player, item, amount):
+        if item == 'HEALTH':
+            player.health += amount
+        elif item == 'AMMO':
+            player.ammo += amount
+        elif item == 'BOMBS':
+            player.bombs += amount
 
-    def printscreen (self, points):
-        permdict = {}
-        for y in range (2):
-            string = ''
-            for x in range (41):
-                string += ' '
-            permdict [y] = string
-            string = ''
-        for y in range(2,3):
-            string = '                ~WELCOME~                '
-            permdict [y] = string
-            string = ''
-        for y in range (3,4):
-            string = '               TO THE SHOP               '
-            permdict[y] = string
-            string = ''
-        for y in range (4,6):
-            for x in range (41):
-                string += ' '
-            permdict [y] = string
-            string = ''
-        for y in range (6,7):
-            string = f'     {self.pointer1} HEALTH  |{self.health}{self.spaces1}|          '
-            permdict [y] = string
-            string = ''
-        for y in range (7,9):
-            for x in range (41):
-                string += ' '
-            permdict [y] = string
-            string = ''
-        for y in range (9,10):
-            string = f'     {self.pointer2} AMMO    |{self.ammo}{self.spaces2}|          '
-            permdict [y] = string
-            string = ''
-        for y in range (10,12):
-            for x in range (41):
-                string += ' ' 
-            permdict [y] = string
-            string = ''
-        for y in range (12,13):
-            string = f'     {self.pointer3} BOMBS   |{self.bombs}{self.spaces3}|          '
-            permdict [y] = string
-            string = ''
-        for y in range (13,15):
-            for x in range (41):
-                string += ' ' 
-            permdict [y] = string
-            string = ''
-        for y in range (15,16):
-            string = f'           POINTS LEFT: {points}                '
-            permdict [y] = string
-            string = ''
-        for y in range (16,19):
-            for x in range (41):
-                string += ' '
-            permdict [y] = string
-            string = ''
+    def buy (self, player, points):
+        item = self.items[self.pointer]
+        if points <= 0:
+            print ('No more points left to spend. Sell [V] items to buy [B] others.')
+            time.sleep(1.5)
+            return points
+        if self.itemvalue(player,item) >= 5:
+            print (f'Max {item.lower()} of 5 reached.')
+            time.sleep(0.75)
+            return points
+        self.changeitem(player,item,1)
+        return points - 1
 
-        #print (permdict)
+    def sell (self, player, points):
+        item = self.items[self.pointer]
+        minimum = 0 if item == 'BOMBS' else 1
+        if self.itemvalue(player,item) <= minimum:
+            if item == 'BOMBS':
+                print ('No bombs left to sell!')
+            else:
+                print (f'Base {item.lower()} {minimum}, cannot be sold!')
+            time.sleep(0.75)
+            return points
+        self.changeitem(player,item,-1)
+        return points + 1
 
-        print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
-        for x,y in (permdict.items()):
-            print (f'X{y}X')
-        print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+    def screenlines (self, player, points):
+        lines = ['','','                ~WELCOME~','               TO THE SHOP','','']
+        for index,item in enumerate(self.items):
+            pointer = ' --> ' if self.pointer == index else '     '
+            value = self.itemvalue(player,item)
+            markers = ''
+            for number in range(value):
+                markers += 'O ' if item == 'HEALTH' else '& ' if item == 'AMMO' else 'B '
+            lines.append(f'     {pointer} {item:<6} |{markers:<10}|')
+            lines.append('')
+        lines.append(f'           POINTS LEFT: {points}')
+        return lines
+
+    def printscreen (self, player, points):
+        printscreen(self.screenlines(player,points))
+
 
 def runshop (num, player):
     s = shop ()
 
     while True:
-        s.printscreen(num)
-
-        user = input ('[W/S/B/V/E]: ')
-        
-        if user == 'w':
-            s.pointer ('w')
-        
-        if user == 's':
-            s.pointer ('s')
-
-        if user == 'b':
-            
-            if s.pointer1 == ' --> ':
-                num = s.buy_health(1, num)
-                player.health += 1
-
-            elif s.pointer2 == ' --> ':
-                num = s.buy_ammo(1, num)
-                player.ammo += 1
-
-            elif s.pointer3 == ' --> ':
-                num = s.buy_bombs(1, num)
-                player.bombs += 1
-            
-        if user == 'v':
-            if s.pointer1 == ' --> ':
-                num = s.sell_health(1, num)
-                player.health -= 1
-
-            elif s.pointer2 == ' --> ':
-                num = s.sell_ammo(1, num)
-                player.ammo -= 1
-
-            elif s.pointer3 == ' --> ':
-                num = s.sell_bombs(1, num)    
-                player.bombs -= 1            
-            
-        if user == 'e':
-            exitinput = input ('Would you like to continue to the next stage?\n[Y/N]: ')
+        s.printscreen(player,num)
+        user = input ('[W/S/B/V/E]: ').lower()
+        if user == 'w' or user == 's':
+            s.move(user)
+        elif user == 'b':
+            num = s.buy(player,num)
+        elif user == 'v':
+            num = s.sell(player,num)
+        elif user == 'e':
+            exitinput = input ('Would you like to continue to the next stage?\n[Y/N]: ').lower()
             if exitinput == 'y':
-                return [player.health,player.ammo,player.bombs]
+                return player
             if exitinput == 'n':
                 print ('Okay. Continue browsing.')
                 time.sleep(1.5)
-
-#THREATCON 3
-
-def dictcreator9 (player, boss, ammo):
-    #print (player.location)
-    permdict = {}
-    for y in range (0,1): 
-        string = ''
-        if boss.ycoord == y:
-            if boss.attackcounter == 0:
-                for x in range (0,41):
-                    if player.location == [x,y]:
-                        string += player.model
-                    elif ammo.location == [x,y]:
-                        string += ammo.model
-                    elif boss.xcoord == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    elif boss.xcoord2 == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    else:
-                        string += ' '
-            if boss.attackcounter == 1:
-                string = '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-            if boss.attackcounter == 2:
-                string = '#########################################'
-        elif boss.ycoord2 == y:
-            if boss.attackcounter == 0:
-                for x in range (0,41):
-                    if player.location == [x,y]:
-                        string += player.model
-                    elif ammo.location == [x,y]:
-                        string += ammo.model
-                    elif boss.xcoord == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    elif boss.xcoord2 == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    else:
-                        string += ' '
-            if boss.attackcounter == 1:
-                string = '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-            if boss.attackcounter == 2:
-                string = '#########################################'
-        else:
-            for x in range (0,41):
-                if player.location == [x,y]:
-                    string += player.model
-                elif ammo.location == [x,y]:
-                    string += ammo.model
-                elif boss.xcoord == x:
-                    if boss.attackcounter == 0:
-                        string += ' '
-                    if boss.attackcounter == 1:
-                        string += boss.attacksqmodel1
-                    if boss.attackcounter == 2:
-                        string += boss.attacksqmodel2
-                elif boss.xcoord2 == x:
-                    if boss.attackcounter == 0:
-                        string += ' '
-                    if boss.attackcounter == 1:
-                        string += boss.attacksqmodel1
-                    if boss.attackcounter == 2:
-                        string += boss.attacksqmodel2
-                else:
-                    string += ' '
-        permdict [y] = string
-    for y in range (1,2):
-        string = ''
-        for x in range (0,14):
-            if player.location == [x,y]:
-                    string += player.model
-            elif ammo.location == [x,y]:
-                string += ammo.model
-            elif boss.xcoord == x:
-                if boss.attackcounter == 0:
-                    string += ' '
-                if boss.attackcounter == 1:
-                    string += boss.attacksqmodel1
-                if boss.attackcounter == 2:
-                    string += boss.attacksqmodel2
-            elif boss.xcoord2 == x:
-                if boss.attackcounter == 0:
-                    string += ' '
-                if boss.attackcounter == 1:
-                    string += boss.attacksqmodel1
-                if boss.attackcounter == 2:
-                    string += boss.attacksqmodel2
-            else:
-                string += ' '
-        string += f'{boss.model}'
-        for x in range (27,41):
-            if player.location == [x,y]:
-                    string += player.model
-            elif ammo.location == [x,y]:
-                string += ammo.model
-            elif boss.xcoord == x:
-                if boss.attackcounter == 0:
-                    string += ' '
-                if boss.attackcounter == 1:
-                    string += boss.attacksqmodel1
-                if boss.attackcounter == 2:
-                    string += boss.attacksqmodel2
-            elif boss.xcoord2 == x:
-                if boss.attackcounter == 0:
-                    string += ' '
-                if boss.attackcounter == 1:
-                    string += boss.attacksqmodel1
-                if boss.attackcounter == 2:
-                    string += boss.attacksqmodel2
-            else:
-                string += ' '
-        permdict [y] = string 
-    
-    for y in range (2,19):
-        #print(y)
-        string = ''
-        if boss.ycoord == y:
-            if boss.attackcounter == 0:
-                for x in range (0,41):
-                    if player.location == [x,y]:
-                        string += player.model
-                    elif ammo.location == [x,y]:
-                        string += ammo.model
-                    elif boss.xcoord == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    elif boss.xcoord2 == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    else:
-                        string += ' '
-            if boss.attackcounter == 1:
-                string = '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-            if boss.attackcounter == 2:
-                string = '#########################################'
-        elif boss.ycoord2 == y:
-            if boss.attackcounter == 0:
-                for x in range (0,41):
-                    if player.location == [x,y]:
-                        string += player.model
-                    elif ammo.location == [x,y]:
-                        string += ammo.model
-                    elif boss.xcoord == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    elif boss.xcoord2 == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    else:
-                        string += ' '
-            if boss.attackcounter == 1:
-                string = '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-            if boss.attackcounter == 2:
-                string = '#########################################'
-        else:
-            #print ('ok')
-            for x in range (0,41):
-                if player.location == [x,y]:
-                    string += player.model
-                elif ammo.location == [x,y]:
-                    string += ammo.model
-                elif boss.xcoord == x:
-                    if boss.attackcounter == 0:
-                        string += ' '
-                    if boss.attackcounter == 1:
-                        string += boss.attacksqmodel1
-                    if boss.attackcounter == 2:
-                        string += boss.attacksqmodel2
-                elif boss.xcoord2 == x:
-                    if boss.attackcounter == 0:
-                        string += ' '
-                    if boss.attackcounter == 1:
-                        string += boss.attacksqmodel1
-                    if boss.attackcounter == 2:
-                        string += boss.attacksqmodel2
-                else:
-                    string += ' '
-        permdict [y] = string
-    return permdict
-
-def dictcreatorwbullets9 (player, boss, bullet, ammo):
-    #print (player.location, bullet.location)
-    permdict = {}
-    for y in range (0,1):         
-        string = ''
-        if boss.ycoord == y:
-            if boss.attackcounter == 0:
-                for x in range (0,41):
-                    if player.location == [x,y]:
-                        string += player.model
-                    elif ammo.location == [x,y]:
-                        string += ammo.model
-                    elif boss.xcoord == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    elif boss.xcoord2 == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    else:
-                        string += ' '
-            if boss.attackcounter == 1:
-                string = '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-            if boss.attackcounter == 2:
-                string = '#########################################'
-        elif boss.ycoord2 == y:
-            if boss.attackcounter == 0:
-                for x in range (0,41):
-                    if player.location == [x,y]:
-                        string += player.model
-                    elif ammo.location == [x,y]:
-                        string += ammo.model
-                    elif boss.xcoord == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    elif boss.xcoord2 == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    else:
-                        string += ' '
-            if boss.attackcounter == 1:
-                string = '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-            if boss.attackcounter == 2:
-                string = '#########################################'
-        else:
-            for x in range (0,41):
-                if player.location == [x,y]:
-                    string += player.model
-                elif bullet.location == [x,y]:
-                    string += bullet.model
-                elif ammo.location == [x,y]:
-                    string += ammo.model
-                elif boss.xcoord == x:
-                    if boss.attackcounter == 0:
-                        string += ' '
-                    if boss.attackcounter == 1:
-                        string += boss.attacksqmodel1
-                    if boss.attackcounter == 2:
-                        string += boss.attacksqmodel2
-                elif boss.xcoord2 == x:
-                    if boss.attackcounter == 0:
-                        string += ' '
-                    if boss.attackcounter == 1:
-                        string += boss.attacksqmodel1
-                    if boss.attackcounter == 2:
-                        string += boss.attacksqmodel2
-                else:
-                    string += ' '
-        permdict [y] = string
-    for y in range (1,2):
-        string = ''
-        for x in range (0,14):
-            if player.location == [x,y]:
-                string += player.model
-            elif bullet.location == [x,y]:
-                string += bullet.model
-            elif ammo.location == [x,y]:
-                string += ammo.model
-            elif boss.xcoord == x:
-                if boss.attackcounter == 0:
-                    string += ' '
-                if boss.attackcounter == 1:
-                    string += boss.attacksqmodel1
-                if boss.attackcounter == 2:
-                    string += boss.attacksqmodel2
-            elif boss.xcoord2 == x:
-                if boss.attackcounter == 0:
-                    string += ' '
-                if boss.attackcounter == 1:
-                    string += boss.attacksqmodel1
-                if boss.attackcounter == 2:
-                    string += boss.attacksqmodel2
-            else:
-                string += ' '
-        string += f'{boss.model}'
-        for x in range (27,41):
-            if player.location == [x,y]:
-                string += player.model
-            elif bullet.location == [x,y]:
-                string += bullet.model
-            elif ammo.location == [x,y]:
-                string += ammo.model
-            elif boss.xcoord == x:
-                if boss.attackcounter == 0:
-                    string += ' '
-                if boss.attackcounter == 1:
-                    string += boss.attacksqmodel1
-                if boss.attackcounter == 2:
-                    string += boss.attacksqmodel2
-            elif boss.xcoord2 == x:
-                if boss.attackcounter == 0:
-                    string += ' '
-                if boss.attackcounter == 1:
-                    string += boss.attacksqmodel1
-                if boss.attackcounter == 2:
-                    string += boss.attacksqmodel2
-            else:
-                string += ' '
-        permdict [y] = string 
-        string = ''
-
-    for y in range (2,19):
-        string = ''
-        if boss.ycoord == y:
-            if boss.attackcounter == 0:
-                for x in range (0,41):
-                    if player.location == [x,y]:
-                        string += player.model
-                    elif ammo.location == [x,y]:
-                        string += ammo.model
-                    elif boss.xcoord == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    elif boss.xcoord2 == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    else:
-                        string += ' '
-                string = '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-            if boss.attackcounter == 2:
-                string = '#########################################'
-            permdict [y] = string        
-        elif boss.ycoord2 == y:
-            if boss.attackcounter == 0:
-                for x in range (0,41):
-                    if player.location == [x,y]:
-                        string += player.model
-                    elif ammo.location == [x,y]:
-                        string += ammo.model
-                    elif boss.xcoord == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    elif boss.xcoord2 == x:
-                        if boss.attackcounter == 0:
-                            string += ' '
-                        if boss.attackcounter == 1:
-                            string += boss.attacksqmodel1
-                        if boss.attackcounter == 2:
-                            string += boss.attacksqmodel2
-                    else:
-                        string += ' '
-            if boss.attackcounter == 1:
-                string = '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-            if boss.attackcounter == 2:
-                string = '#########################################'
-            permdict [y] = string        
-        else:
-            for x in range (0,41):
-                if player.location == [x,y]:
-                    string += player.model
-                elif bullet.location == [x,y]:
-                    string += bullet.model
-                elif ammo.location == [x,y]:
-                    string += ammo.model
-                elif boss.xcoord == x:
-                    if boss.attackcounter == 0:
-                        string += ' '
-                    if boss.attackcounter == 1:
-                        string += boss.attacksqmodel1
-                    if boss.attackcounter == 2:
-                        string += boss.attacksqmodel2
-                elif boss.xcoord2 == x:
-                    if boss.attackcounter == 0:
-                        string += ' '
-                    if boss.attackcounter == 1:
-                        string += boss.attacksqmodel1
-                    if boss.attackcounter == 2:
-                        string += boss.attacksqmodel2
-                else:
-                    string += ' '
-        permdict [y] = string
-    return permdict
-
-def interface2 (player, boss):
-    print(f'\t      BOSS HEALTH:{boss.health}\n    {boss.lines}\n    -----------------------------------    \n\t      HEALTH: {player.health}\n\t      AMMO: {player.ammo}\n\t      PLAYER: {player.status}\n    {player.notice}    ')
-
-
-#GENERAL FUNCTIONS
-
-def threatconlvl (threatcon_lvl):
-    permdict = {}
-    for row in range(8):
-        string = ''
-        for column in range(41):
-            string += ' '
-        permdict[row] = string
-    string = '                ~NOTICE~                 '
-    permdict [9] = string
-    string = f'   YOU ARE MOVING TO THREATCON LEVEL {threatcon_lvl}   '
-    permdict[10] = string
-    string = ''
-    for row in range(11,19):
-        string = ''
-        for column in range(41):
-            string += ' '
-        permdict[row] = string
-
-    print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
-    for ok,yes in (permdict.items()):
-        print (f'X{yes}X')
-    print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX') 
-
-def printdict (permdict):
-    print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
-    for x,y in reversed(permdict.items()):
-        print (f'X{y}X')
-    print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
- 
-
-

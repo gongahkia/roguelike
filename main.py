@@ -1,634 +1,276 @@
 from titlescreen import titlescreen
-from functions import player, bullet, ammo, target, necromancer, boss, dictcreator, dictcreatorwbullets, dictcreator3, dictcreatorwbullets3, dictcreator6, dictcreatorwbullets6, dictcreator9, dictcreatorwbullets9, interface2, runshop, printdict, interface, threatconlvl
-import time
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, moveplayer, attackplayer, bombcoordinates, bosshitbox, updateboss, updatedict, printdict, interface, threatconlvl, runshop
 
-def rungame ():
 
-    condition = True
-    
-    while condition == True:
+#GAME SETTINGS
+
+STAGES = [
+    {'level': 0, 'targets': 1, 'necromancers': 0, 'score': 3, 'ammo': 1},
+    {'level': 1, 'targets': 3, 'necromancers': 0, 'score': 4, 'ammo': 1},
+    {'level': 2, 'targets': 1, 'necromancers': 2, 'score': 5, 'ammo': 2}
+]
+
+
+#GENERAL FUNCTIONS
+
+def startgame ():
+    while True:
         titlescreen()
-        user = input ('[Y/N]: ')
-        
+        user = input ('[Y/N]: ').lower()
         if user == 'y':
-            condition = False
-
+            return True
         if user == 'n':
             print ('Okay. Hope to see you again!')
-            exit()
+            return False
 
 
-########################################################
+def continuestage (level):
+    while True:
+        threatconlvl(level)
+        acknowledgement = input('[Y to continue/N to leave]: ').lower()
+        if acknowledgement == 'y':
+            return True
+        if acknowledgement == 'n':
+            print ('Thanks for playing!')
+            return False
 
-    p = player()
-    t = target()
-    a = ammo()
+
+def occupiedcoordinates (play, targets, necromancers, bullets, bombs, ammopickup = None, blocked = None):
+    occupied = {tuple(play.location)}
+    for item in targets + necromancers + bullets + bombs:
+        occupied.add(tuple(item.location))
+    if ammopickup is not None:
+        occupied.add(tuple(ammopickup.location))
+    if blocked is not None:
+        occupied.update(blocked)
+    return occupied
+
+
+def openlocation (play, targets, necromancers, bullets, bombs, ammopickup = None, blocked = None):
+    occupied = occupiedcoordinates(play,targets,necromancers,bullets,bombs,ammopickup,blocked)
+    return randomlocation(occupied)
+
+
+def createstageentities (settings, play):
+    targets = []
+    necromancers = []
+    bullets = []
+    bombs = []
+
+    for number in range(settings['targets']):
+        location = openlocation(play,targets,necromancers,bullets,bombs)
+        targets.append(target(location))
+    for number in range(settings['necromancers']):
+        location = openlocation(play,targets,necromancers,bullets,bombs)
+        necromancers.append(necromancer(location))
+    location = openlocation(play,targets,necromancers,bullets,bombs)
+    ammopickup = ammo(location)
+    return targets,necromancers,bullets,bombs,ammopickup
+
+
+def refillstageentities (settings, play, targets, necromancers, bullets, bombs, ammopickup):
+    while len(targets) < settings['targets']:
+        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup)
+        targets.append(target(location))
+    while len(necromancers) < settings['necromancers']:
+        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup)
+        necromancers.append(necromancer(location))
+    if ammopickup is None:
+        location = openlocation(play,targets,necromancers,bullets,bombs)
+        ammopickup = ammo(location)
+    return ammopickup
+
+
+def collectammo (play, ammopickup):
+    if play.location == ammopickup.location:
+        play.reload()
+        play.notice = '~Ammo collected.~'
+        return None
+    return ammopickup
+
+
+def playeraction (play, user, bullets, bombs):
+    moveplayer(play,user)
+    if play.model == '*' or play.health <= 0:
+        return
+    if user == 'e':
+        if play.shoot():
+            bullets.append(bullet(play.model,play.location))
+        else:
+            play.notice = '~No more ammo, find more to shoot.~'
+    if user == 'b':
+        if play.bombs <= 0:
+            play.notice = '~No bombs left. Buy bombs in the shop.~'
+        else:
+            bombs.append(bomb(play.location))
+            play.bombs -= 1
+            play.notice = '~Bomb armed. Move away before it explodes.~'
+
+
+def targetdestroyed (play, item, targets):
+    item.destroyed()
+    targets.remove(item)
+    play.score += 1
+    play.reload()
+
+
+def necromancerdestroyed (play, item, necromancers):
+    item.destroyed()
+    necromancers.remove(item)
+    play.score += 1
+    play.reload(2)
+
+
+def updatebullets (play, bullets, targets, necromancers, enemyboss = None):
+    remaining = []
+    for item in bullets:
+        if not item.active:
+            item.active = True
+            remaining.append(item)
+            continue
+        item.movement()
+        if item.location[0] < 0 or item.location[0] >= BOARDWIDTH or item.location[1] < 0 or item.location[1] >= BOARDHEIGHT:
+            continue
+
+        hit = False
+        for enemy in list(targets):
+            if item.location == enemy.location:
+                targetdestroyed(play,enemy,targets)
+                hit = True
+                break
+        if hit:
+            continue
+
+        for enemy in list(necromancers):
+            if item.location == enemy.location:
+                enemy.damaged()
+                if enemy.health <= 0:
+                    necromancerdestroyed(play,enemy,necromancers)
+                hit = True
+                break
+        if hit:
+            continue
+
+        if enemyboss is not None and tuple(item.location) in bosshitbox(enemyboss):
+            enemyboss.damaged()
+            updateboss(enemyboss)
+            continue
+        remaining.append(item)
+    return remaining
+
+
+def updatebombs (play, bombs, targets, necromancers, enemyboss = None):
+    explosions = set()
+    remaining = []
+    for item in bombs:
+        if not item.tick():
+            remaining.append(item)
+            continue
+
+        blast = bombcoordinates(item)
+        explosions.update(blast)
+        if tuple(play.location) in blast:
+            play.attacked()
+            play.notice = '~You were caught in the blast.~'
+        for enemy in list(targets):
+            if tuple(enemy.location) in blast:
+                targetdestroyed(play,enemy,targets)
+        for enemy in list(necromancers):
+            if tuple(enemy.location) in blast:
+                enemy.damaged(2)
+                if enemy.health <= 0:
+                    necromancerdestroyed(play,enemy,necromancers)
+        if enemyboss is not None:
+            if len(blast.intersection(bosshitbox(enemyboss))) > 0:
+                enemyboss.damaged(2)
+                updateboss(enemyboss)
+    return remaining,explosions
+
+
+def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None):
+    entitydict = updatedict(play,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions)
+    printdict(entitydict)
+    interface(play,level,enemyboss,0 if bombs is None else len(bombs))
+
+
+#THREATCON LEVELS
+
+def runstage (settings):
+    play = player()
+    play.ammo = settings['ammo']
+    targets,necromancers,bullets,bombs,ammopickup = createstageentities(settings,play)
+    printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup)
+
+    while play.health > 0 and play.score < settings['score']:
+        user = input('[W/A/S/D/E/B]: ').lower()
+        play.notice = ''
+        playeraction(play,user,bullets,bombs)
+        ammopickup = collectammo(play,ammopickup)
+        bullets = updatebullets(play,bullets,targets,necromancers)
+        bombs,explosions = updatebombs(play,bombs,targets,necromancers)
+        attackplayer(play,necromancers)
+        ammopickup = refillstageentities(settings,play,targets,necromancers,bullets,bombs,ammopickup)
+        printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions)
+    return play
+
+
+#BOSS FIGHT
+
+def resetplayer (play):
+    play.location = [20,9]
+    play.model = '^'
+    play.score = 0
+    play.status = 'alive'
+    play.notice = ''
+
+
+def runboss (play):
+    resetplayer(play)
+    enemyboss = boss()
+    targets = []
+    necromancers = []
+    bullets = []
+    bombs = []
+    location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss))
+    ammopickup = ammo(location)
+    printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss)
+
+    while play.health > 0 and enemyboss.health > 0:
+        user = input('[W/A/S/D/E/B]: ').lower()
+        play.notice = ''
+        playeraction(play,user,bullets,bombs)
+        ammopickup = collectammo(play,ammopickup)
+        if ammopickup is None:
+            location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss))
+            ammopickup = ammo(location)
+        bullets = updatebullets(play,bullets,targets,necromancers,enemyboss)
+        bombs,explosions = updatebombs(play,bombs,targets,necromancers,enemyboss)
+        if enemyboss.health > 0:
+            attackplayer(play,[enemyboss])
+        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions)
+
+    if enemyboss.health <= 0 and play.health > 0:
+        enemyboss.destroyed()
+        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss)
+        print ('          ~You have won the game~         ')
+        return True
+    return False
+
+
+def rungame ():
+    if not startgame():
+        return
+
     totscore = 0
-   
-    printdict(dictcreator(p, t, a))
-    interface(p)
-    numbullets = 0
-    threatcon_lvl = 0
-
-########################################################
-
-    while threatcon_lvl == 0:
-
-        user = input('[W/A/S/D/E]: ')
-        p.notice = ''
-
-
-        #handling orientation and movement of player
-        if p.model == '^' and user == 'w':
-                p.movement(user)
-        if p.model == '<' and user == 'a':
-            p.movement (user)
-        if p.model == 'V' and user == 's':
-            p.movement (user)
-        if p.model == '>' and user == 'd':
-            p.movement (user)
-        p.face(user)
-
-        if p.location[0]< 0:
-            p.location[0] = 0 
-        if p.location[0] > 40: 
-            p.location[0] = 40  
-        if p.location[1] < 0: 
-            p.location[1] = 0  
-        if p.location[1] > 18:
-            p.location[1] = 18
-
-        if p.location == a.location:
-            p.reload()
-            a.destroyed()
-            a = ammo()
-
-        if numbullets == 1:
-            b.movement()
-            if b.location == t.location:
-                b.collision()
-                p.reload()
-                p.notice = ''
-                p.score += 1
-                numbullets = 2
-
-            elif b.location[0] < 0 or b.location[0] > 41 or b.location[1] < 0 or b.location[1] > 19:
-                b.collision()
-                p.reload()
-                p.notice = ''
-                numbullets = 0
-        
-        elif numbullets == 2:
-            b.disappear()
-            t.destroyed()
-            numbullets = 3
-
-        elif numbullets == 3:
-            t = target()
-            numbullets = 0
-            #t = target()
-
-        #handling shooting 
-        if user == 'e':
-            if numbullets == 0:
-                if p.ammo > 0:
-                    p.shoot()
-                    b = bullet(p.model,p.location)
-                    print(b.location)
-                    printdict(dictcreatorwbullets(p, t, b, a))
-                    numbullets = 1
-
-                if p.ammo == 0:
-                    p.notice = '~No more ammo, find more to shoot.~'
-                
-        if numbullets == 0:
-            printdict(dictcreator(p, t, a))
-
-        if numbullets == 1 or numbullets == 2 or numbullets == 3:
-            printdict(dictcreatorwbullets(p, t, b, a))
-
-        if p.score > 2:
-            totscore += p.score
-            threatcon_lvl += 1
-            p.deconstruct()
-            break
-
-        interface(p)
-
-########################################################
-
-    while threatcon_lvl == 1:
-        threatconlvl(threatcon_lvl)
-        
-        acknowledgement = input('[Y to continue/N to leave]')
-
-        if acknowledgement == 'n':
-            print ('Thanks for playing!')
-            exit()
-
-        else:
-            break
-
-        
-    
-    p = player()
-    t1 = target()
-    t2 = target()
-    t3 = target()
-    a = ammo()
-    numbullets = 0
-    p.ammo = 1
-    p.notice = ''
-
-    printdict(dictcreator3(p,t1,t2,t3,a))
-    interface(p)
-
-    while threatcon_lvl == 1:
-    
-        user = input('[W/A/S/D/E]: ')
-        p.notice = ''
-
-
-        #handling orientation and movement of player
-        if p.model == '^' and user == 'w':
-                p.movement(user)
-        if p.model == '<' and user == 'a':
-            p.movement (user)
-        if p.model == 'V' and user == 's':
-            p.movement (user)
-        if p.model == '>' and user == 'd':
-            p.movement (user)
-        p.face(user)
-
-        if p.location[0]< 0:
-            p.location[0] = 0 
-        if p.location[0] > 40: 
-            p.location[0] = 40  
-        if p.location[1] < 0: 
-            p.location[1] = 0  
-        if p.location[1] > 18:
-            p.location[1] = 18        
-
-        if p.location == a.location:
-            p.reload()
-            a.destroyed()
-            a = ammo()
-
-        if numbullets == 1:
-            b.movement()
-
-            if b.location == t1.location:
-                b.collision()
-                p.reload()
-                p.notice = ''
-                p.score += 1
-                numbullets = 2
-
-            elif b.location == t2.location:
-                t2.destroyed()
-                numbullets = 4
-
-            elif b.location == t3.location:
-                t3.destroyed()
-                numbullets = 5
-
-            elif b.location[0] < 0 or b.location[0] > 41 or b.location[1] < 0 or b.location[1] > 19:
-                b.collision()
-                p.reload()
-                p.notice = ''
-                numbullets = 0
-        
-        elif numbullets == 2:
-            b.disappear()
-            t1.destroyed()
-            numbullets = 3
-
-        elif numbullets == 3:
-            t1 = target()
-            numbullets = 0
-            #t = target()
-
-        elif numbullets == 4:
-            t2 = target()
-            numbullets = 0
-
-        elif numbullets == 5:
-            t3 = target()
-            numbullets = 0
-
-        #handling shooting 
-        if user == 'e':
-            if numbullets == 0:
-                if p.ammo == 0:
-                    p.notice = '~No more ammo, find more to shoot.~'
-    
-                if p.ammo > 0:
-                    p.shoot()
-                    b = bullet(p.model,p.location)
-                    print(b.location)
-                    printdict(dictcreatorwbullets3(p, t1, t2, t3, b, a))
-                    numbullets = 1
-
-            if numbullets == 1:
-                if p.ammo == 0:
-                    p.notice = '~No more ammo, find more to shoot.~'
-                
-        if numbullets == 0:
-            printdict(dictcreator3(p,t1,t2,t3,a))
-
-        if numbullets == 1 or numbullets == 2 or numbullets == 3 or numbullets == 4 or numbullets == 5:
-            printdict(dictcreatorwbullets3(p, t1, t2, t3, b, a))
-
-        interface(p)
-
-        if p.score > 2:
-            totscore += p.score
-            threatcon_lvl += 1
-            p.deconstruct()
-            t1.destroyed()
-            t2.destroyed()
-            t3.destroyed()
-            break
-
-
-########################################################
-
-    while threatcon_lvl == 2:
-        threatconlvl(threatcon_lvl)
-        
-        acknowledgement = input('[Y to continue/N to leave]')
-
-        if acknowledgement == 'n':
-            print ('Thanks for playing!')
-            exit()
-
-        else:
-            break
-    
-    p = player()
-    t1 = target()
-    n1 = necromancer()
-    n2 = necromancer()
-    a = ammo()
-    numbullets = 0
-    p.ammo = 1
-    p.notice = ''
-
-    printdict(dictcreator6(p,t1,n1,n2,a))
-    interface(p)
-
-    while threatcon_lvl == 2:
-        if p.health <= 0:
-            time.sleep(4.5)
-            exit()
-
-        user = input('[W/A/S/D/E]: ')
-        p.notice = ''
-
-#when player is attacked by necromancer
-        if p.model == '*':
-            if user == 'w':
-                p.model = '^'
-                p.movement (user)
-            elif user == 'a':
-                p.model = '<'
-                p.movement (user)
-            elif user == 's':
-                p.model = 'V'
-                p.movement (user)
-            elif user == 'd':
-                p.model = '>'
-                p.movement (user)
-
-    #handling orientation and movement of player
-        if p.model == '^' or p.model == '<' or p.model == 'V' or p.model == '>':   
-            if p.model == '^' and user == 'w':
-                    p.movement(user)
-            if p.model == '<' and user == 'a':
-                p.movement (user)
-            if p.model == 'V' and user == 's':
-                p.movement (user)
-            if p.model == '>' and user == 'd':
-                p.movement (user)
-            p.face(user)
-
-        if p.location[0]< 0:
-            p.location[0] = 0 
-        if p.location[0] > 40: 
-            p.location[0] = 40  
-        if p.location[1] < 0: 
-            p.location[1] = 0  
-        if p.location[1] > 18:
-            p.location[1] = 18
-
-        n1.attack()
-        n2.attack()        
-
-        if p.location == a.location:
-            p.reload()
-            a.destroyed()
-            a = ammo()
-
-        if n1.xcoord == p.location[0]:
-            if n1.attackcounter == 2:
-                p.model = '*'
-                p.attacked()
-                if user == 'e':
-                    p.notice = "~Necromancer froze you. Can't shoot!~"
-            else:
-                pass
-
-        if n2.xcoord == p.location[0]:
-            if n2.attackcounter == 2:
-                p.model = '*'
-                p.attacked()
-                if user == 'e':
-                    p.notice = "~Necromancer froze you. Can't shoot!~"
-
-        if numbullets == 1:
-            b.movement()
-
-            if b.location == t1.location:
-                b.collision()
-                p.reload()
-                p.notice = ''
-                p.score += 1
-                numbullets = 2
-
-            elif b.location == n1.location:
-                #n1.collision()
-                n1.damaged()
-                if n1.health <= 0:
-                    n1.destroyed()
-                    numbullets = 4
-                    p.score += 1
-                    p.reload()
-                    p.reload()
-                else:
-                    numbullets = 0
-
-            elif b.location == n2.location:
-                #n2.collision()
-                n2.damaged()
-                if n2.health <= 0:
-                    n2.destroyed()
-                    numbullets = 5
-                    p.score += 1
-                    p.reload()
-                    p.reload()
-                else:
-                    numbullets = 0
-
-            elif b.location[0] < 0 or b.location[0] > 41 or b.location[1] < 0 or b.location[1] > 19:
-                b.collision()
-                p.reload()
-                p.notice = ''
-                numbullets = 0
-        
-        elif numbullets == 2:
-            b.disappear()
-            t1.destroyed()
-            numbullets = 3
-
-        elif numbullets == 3:
-            t1 = target()
-            numbullets = 0
-            #t = target()
-
-        elif numbullets == 4:
-            n1 = necromancer()
-            numbullets = 0
-
-        elif numbullets == 5:
-            n2 = necromancer ()
-            numbullets = 0
-
-        #handling shooting 
-        if p.model == '^' or p.model == '<' or p.model == 'V' or p.model == '>':
-            if user == 'e':
-                if numbullets == 0:
-                    if p.ammo == 0:
-                        p.notice = '~No more ammo, find more to shoot.~'
-        
-                    if p.ammo > 0:
-                        p.shoot()
-                        b = bullet(p.model,p.location)
-                        #print(b.location)
-                        printdict(dictcreatorwbullets6(p, t1, n1, n2, b, a))
-                        numbullets = 1
-                
-                if numbullets == 1:
-                    if p.ammo == 0:
-                        p.notice = '~No more ammo, find more to shoot.~'
-                
-        if numbullets == 0:
-            printdict(dictcreator6(p, t1, n1, n2, a))
-
-        if numbullets == 1 or numbullets == 2 or numbullets == 3 or numbullets == 4 or numbullets == 5:
-            printdict(dictcreatorwbullets6(p, t1, n1, n2, b, a))
-
-        interface(p)
-
-        if p.score > 2:
-            totscore += p.score
-            threatcon_lvl += 1
-            p.deconstruct()
-            t1.destroyed()
-            n1.destroyed()
-            n2.destroyed()
-            a.destroyed()
-            break
-
-########################################################
-    while threatcon_lvl == 3:
-        threatconlvl(threatcon_lvl)
-    
-        acknowledgement = input('[Y to continue/N to leave]')
-
-        if acknowledgement == 'n':
-            print ('Thanks for playing!')
-            exit()
-
-        else:
-            break
-    
-    val = runshop(totscore, p)
-
-########################################################
-
-    while threatcon_lvl == 3:
-        threatconlvl(threatcon_lvl)
-    
-        acknowledgement = input('[Y to continue/N to leave]')
-
-        if acknowledgement == 'n':
-            print ('Thanks for playing!')
-            exit()
-
-        else:
-            break
-
-    playerhealth = int(val[0])
-    playerammo = int(val[1])
-
-    p = player()
-    boz = boss()
-    a = ammo()
-    numbullets = 0
-    p.notice = ''
-
-    p.health = playerhealth
-    p.ammo = playerammo
-
-    printdict(dictcreator9(p,boz,a))
-    interface2(p,boz)
-
-    while threatcon_lvl == 3:
-
-        if p.health <= 0:
-            time.sleep(4.5)
-            exit()
-
-        user = input('[W/A/S/D/E]: ')
-        p.notice = ''
-
-    #when player is attacked by boss
-        if p.model == '*':
-            if user == 'w':
-                p.model = '^'
-                p.movement (user)
-            elif user == 'a':
-                p.model = '<'
-                p.movement (user)
-            elif user == 's':
-                p.model = 'V'
-                p.movement (user)
-            elif user == 'd':
-                p.model = '>'
-                p.movement (user)
-
-    #handling orientation and movement of player
-        if p.model == '^' or p.model == '<' or p.model == 'V' or p.model == '>':   
-            if p.model == '^' and user == 'w':
-                    p.movement(user)
-            if p.model == '<' and user == 'a':
-                p.movement (user)
-            if p.model == 'V' and user == 's':
-                p.movement (user)
-            if p.model == '>' and user == 'd':
-                p.movement (user)
-            p.face(user)
-
-        if p.location[0]< 0:
-            p.location[0] = 0 
-        if p.location[0] > 40: 
-            p.location[0] = 40  
-        if p.location[1] < 0: 
-            p.location[1] = 0  
-        if p.location[1] > 18:
-            p.location[1] = 18
-
-        boz.attack()   
-
-        if p.location == a.location:
-            p.reload()
-            a.destroyed()
-            a = ammo()
-
-        if boz.xcoord == p.location[0]:
-            if boz.attackcounter == 2:
-                p.model = '*'
-                p.attacked()
-                if user == 'e':
-                    p.notice = "~Boss immobilized you. Can't shoot!~"
-        
-        if boz.ycoord == p.location[1]: 
-            if boz.attackcounter == 2:
-                p.model = '*'
-                p.attacked()
-                if user == 'e':
-                    p.notice = "~Boss immobilized you. Can't shoot!~"
-
-        if boz.xcoord2 == p.location[0]:
-            if boz.attackcounter == 2:
-                p.model = '*'
-                p.attacked()
-                if user == 'e':
-                    p.notice = "~Boss immobilized you. Can't shoot!~"
-        
-        if boz.ycoord2 == p.location[1]: 
-            if boz.attackcounter == 2:
-                p.model = '*'
-                p.attacked()
-                if user == 'e':
-                    p.notice = "~Boss immobilized you. Can't shoot!~"
-
-        if numbullets == 1:
-            b.movement()
-
-            if b.location[1] == 1:
-                if b.location[0] >= 16 and b.location[0] <= 24:
-                    b.collision()
-                    p.notice = ''
-                    numbullets = 2
-
-            elif b.location[0] < 0 or b.location[0] > 41 or b.location[1] < 0 or b.location[1] > 19:
-                b.collision()
-                p.reload()
-                p.notice = ''
-                numbullets = 0
-        
-        elif numbullets == 2:
-            b.disappear()
-            boz.damaged()
-            numbullets = 0
-
-        #handling shooting 
-        if p.model == '^' or p.model == '<' or p.model == 'V' or p.model == '>':
-            if user == 'e':
-                if numbullets == 0:
-                    if p.ammo == 0:
-                        p.notice = '~No more ammo, find more to shoot.~'
-        
-                    if p.ammo > 0:
-                        p.shoot()
-                        b = bullet(p.model,p.location)
-                        #print(b.location)
-                        printdict(dictcreatorwbullets9(p,boz,b,a))
-                        numbullets = 1
-                
-                if numbullets == 1:
-                    if p.ammo == 0:
-                        p.notice = '~No more ammo, find more to shoot.~'
-
-        if boz.health < 8:
-            boz.phase2()
-
-        if boz.health < 4:
-            boz.phase3()
-
-        if boz.health < 2:
-            boz.phase4()
-                
-        if numbullets == 0:
-            printdict(dictcreator9(p,boz,a))
-
-        if numbullets == 1 or numbullets == 2:
-            printdict(dictcreatorwbullets9(p, boz, b, a))
-
-        interface2(p,boz)
-
-
-    #placeholder for gameover screen
-        if boz.health <= 0:
-            boz.destroyed()
-            threatcon_lvl += 1
-            try:
-                printdict(dictcreator9(p,boz,a))
-            except:
-                printdict(dictcreatorwbullets9(p, boz, b, a))
-            interface2(p,boz)
-            print ('          ~You have won the game~         ')
-            exit()
-
-########################################################
+    play = None
+    for settings in STAGES:
+        if settings['level'] > 0:
+            if not continuestage(settings['level']):
+                return
+        play = runstage(settings)
+        if play.health <= 0:
+            return
+        totscore += play.score
+
+    play = runshop(totscore,play)
+    runboss(play)
