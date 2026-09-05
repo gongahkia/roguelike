@@ -1,6 +1,12 @@
 import random
+import sys
 import time
 from collections import deque
+
+try:
+    import termios
+except ImportError:
+    termios = None
 
 
 #GAME SETTINGS
@@ -555,8 +561,28 @@ def colourboardline (line):
     return colouredline
 
 
+def readkey ():
+    if termios is None or not sys.stdin.isatty():
+        return input().lower()
+
+    filedescriptor = sys.stdin.fileno()
+    oldsettings = termios.tcgetattr(filedescriptor)
+    newsettings = termios.tcgetattr(filedescriptor)
+    newsettings[3] &= ~(termios.ICANON | termios.ECHO)
+    newsettings[6][termios.VMIN] = 1
+    newsettings[6][termios.VTIME] = 0
+    try:
+        termios.tcsetattr(filedescriptor,termios.TCSADRAIN,newsettings)
+        user = sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(filedescriptor,termios.TCSADRAIN,oldsettings)
+    print (colourtext(user,WHITE))
+    return user.lower()
+
+
 def promptinput (prompt):
-    return input(colourtext(f'{prompt:^{BOARDWIDTH}}',WHITE)).lower()
+    print (colourtext(f'{prompt:^{BOARDWIDTH}}',WHITE),end = '',flush = True)
+    return readkey()
 
 
 def printscreen (lines, gameboard = False):
