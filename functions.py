@@ -600,6 +600,18 @@ def fogdict (entitydict, space, visible, explored):
     return foggeddict
 
 
+def mapdict (entitydict, space):
+    mapentities = {}
+    for x in range(BOARDWIDTH):
+        for y in range(BOARDHEIGHT):
+            coordinate = (x,y)
+            if coordinate in entitydict:
+                mapentities[coordinate] = entitydict[coordinate]
+            elif coordinate not in space:
+                mapentities[coordinate] = '#'
+    return mapentities
+
+
 def clearscreen ():
     print ('\033[2J\033[H',end = '')
 

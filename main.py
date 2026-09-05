@@ -1,5 +1,5 @@
 from titlescreen import titlescreen
-from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, printdict, interface, promptinput, threatconlvl, runshop
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, mapdict, printdict, interface, promptinput, threatconlvl, runshop
 
 
 #GAME SETTINGS
@@ -16,13 +16,11 @@ STAGES = [
 def startgame ():
     while True:
         titlescreen()
-        user = promptinput('[Y/N/0/1/2/3]: ')
+        user = promptinput('[Y/N]: ')
         if user == 'y':
-            return 'campaign'
+            return True
         if user == 'n':
-            return None
-        if user in ['0','1','2','3']:
-            return user
+            return False
 
 
 def continuestage (level):
@@ -199,10 +197,13 @@ def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None):
 
 def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5):
     entitydict = updatedict(play,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions)
-    if space is not None and explored is not None:
-        visible = visiblecoordinates(play,space,vision)
-        explored.update(visible)
-        entitydict = fogdict(entitydict,space,visible,explored)
+    if space is not None:
+        if explored is None:
+            entitydict = mapdict(entitydict,space)
+        else:
+            visible = visiblecoordinates(play,space,vision)
+            explored.update(visible)
+            entitydict = fogdict(entitydict,space,visible,explored)
     printdict(entitydict)
     interface(play,level,enemyboss,0 if bombs is None else len(bombs))
 
@@ -251,11 +252,10 @@ def runboss (play):
     bullets = []
     bombs = []
     space = generatespace(play.location,bosshitbox(enemyboss))
-    explored = set()
     enemyboss.newattack(space)
     location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss),space)
     ammopickup = ammo(location)
-    printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space,explored = explored)
+    printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space)
 
     while play.health > 0 and enemyboss.health > 0:
         user = promptinput('[W/A/S/D/E/B]: ')
@@ -269,11 +269,11 @@ def runboss (play):
         bombs,explosions = updatebombs(play,bombs,targets,necromancers,space,enemyboss)
         if enemyboss.health > 0:
             attackplayer(play,[enemyboss],space)
-        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,space,explored)
+        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,space)
 
     if enemyboss.health <= 0 and play.health > 0:
         enemyboss.destroyed()
-        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space,explored = explored)
+        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space)
         print ('          ~You have won the game~         ')
         return True
     return False
@@ -288,13 +288,12 @@ def rundebuglevel (level):
     runboss(play)
 
 
-def rungame ():
-    selection = startgame()
-    if selection is None:
-        print ('Okay. Hope to see you again!')
+def rungame (debuglevel = None):
+    if debuglevel is not None:
+        rundebuglevel(debuglevel)
         return
-    if selection != 'campaign':
-        rundebuglevel(int(selection))
+    if not startgame():
+        print ('Okay. Hope to see you again!')
         return
 
     totscore = 0
