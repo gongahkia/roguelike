@@ -9,10 +9,12 @@ BOARDWIDTH = 41
 BOARDHEIGHT = 19
 RESET = '\033[0m'
 CYAN = '\033[96m'
+BLUE = '\033[94m'
 YELLOW = '\033[93m'
 RED = '\033[91m'
 MAGENTA = '\033[95m'
 GREY = '\033[90m'
+WHITE = '\033[97m'
 
 COLOURS = {
     '^': CYAN,
@@ -26,7 +28,7 @@ COLOURS = {
     '&': YELLOW,
     'B': MAGENTA,
     '!': RED,
-    '#': RED,
+    '#': BLUE,
     '*': YELLOW,
     '?': GREY,
     '.': GREY
@@ -554,7 +556,7 @@ def colourboardline (line):
 
 
 def promptinput (prompt):
-    return input(colourtext(f'{prompt:^{BOARDWIDTH}}',CYAN)).lower()
+    return input(colourtext(f'{prompt:^{BOARDWIDTH}}',WHITE)).lower()
 
 
 def printscreen (lines, gameboard = False):
@@ -602,7 +604,7 @@ def hudlines (player, level = None, enemyboss = None, armedbombs = 0):
 def interface (player, level = None, enemyboss = None, armedbombs = 0):
     for line in hudlines(player,level,enemyboss,armedbombs):
         for part in line.splitlines():
-            print(colourtext(part.center(BOARDWIDTH),CYAN))
+            print(colourtext(part.center(BOARDWIDTH),WHITE))
 
 
 def interface2 (player, enemyboss, armedbombs = 0):
