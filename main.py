@@ -1,13 +1,13 @@
 from titlescreen import titlescreen
-from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, moveplayer, attackplayer, bombcoordinates, bosshitbox, updateboss, updatedict, printdict, interface, threatconlvl, runshop
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, attackplayer, bombcoordinates, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, printdict, interface, threatconlvl, runshop
 
 
 #GAME SETTINGS
 
 STAGES = [
-    {'level': 0, 'targets': 1, 'necromancers': 0, 'score': 3, 'ammo': 1},
-    {'level': 1, 'targets': 3, 'necromancers': 0, 'score': 4, 'ammo': 1},
-    {'level': 2, 'targets': 1, 'necromancers': 2, 'score': 5, 'ammo': 2}
+    {'level': 0, 'targets': 1, 'necromancers': 0, 'score': 3, 'ammo': 1, 'vision': 6},
+    {'level': 1, 'targets': 3, 'necromancers': 0, 'score': 4, 'ammo': 1, 'vision': 5},
+    {'level': 2, 'targets': 1, 'necromancers': 2, 'score': 5, 'ammo': 2, 'vision': 4}
 ]
 
 
@@ -46,37 +46,37 @@ def occupiedcoordinates (play, targets, necromancers, bullets, bombs, ammopickup
     return occupied
 
 
-def openlocation (play, targets, necromancers, bullets, bombs, ammopickup = None, blocked = None):
+def openlocation (play, targets, necromancers, bullets, bombs, ammopickup = None, blocked = None, space = None):
     occupied = occupiedcoordinates(play,targets,necromancers,bullets,bombs,ammopickup,blocked)
-    return randomlocation(occupied)
+    return randomlocation(occupied,space)
 
 
-def createstageentities (settings, play):
+def createstageentities (settings, play, space):
     targets = []
     necromancers = []
     bullets = []
     bombs = []
 
     for number in range(settings['targets']):
-        location = openlocation(play,targets,necromancers,bullets,bombs)
+        location = openlocation(play,targets,necromancers,bullets,bombs,space = space)
         targets.append(target(location))
     for number in range(settings['necromancers']):
-        location = openlocation(play,targets,necromancers,bullets,bombs)
+        location = openlocation(play,targets,necromancers,bullets,bombs,space = space)
         necromancers.append(necromancer(location))
-    location = openlocation(play,targets,necromancers,bullets,bombs)
+    location = openlocation(play,targets,necromancers,bullets,bombs,space = space)
     ammopickup = ammo(location)
     return targets,necromancers,bullets,bombs,ammopickup
 
 
-def refillstageentities (settings, play, targets, necromancers, bullets, bombs, ammopickup):
+def refillstageentities (settings, play, targets, necromancers, bullets, bombs, ammopickup, space):
     while len(targets) < settings['targets']:
-        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup)
+        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,space = space)
         targets.append(target(location))
     while len(necromancers) < settings['necromancers']:
-        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup)
+        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,space = space)
         necromancers.append(necromancer(location))
     if ammopickup is None:
-        location = openlocation(play,targets,necromancers,bullets,bombs)
+        location = openlocation(play,targets,necromancers,bullets,bombs,space = space)
         ammopickup = ammo(location)
     return ammopickup
 
@@ -89,8 +89,8 @@ def collectammo (play, ammopickup):
     return ammopickup
 
 
-def playeraction (play, user, bullets, bombs):
-    moveplayer(play,user)
+def playeraction (play, user, bullets, bombs, space):
+    moveplayer(play,user,space)
     if play.model == '*' or play.health <= 0:
         return
     if user == 'e':
@@ -121,15 +121,17 @@ def necromancerdestroyed (play, item, necromancers):
     play.reload(2)
 
 
-def updatebullets (play, bullets, targets, necromancers, enemyboss = None):
+def updatebullets (play, bullets, targets, necromancers, space, enemyboss = None):
     remaining = []
     for item in bullets:
         if not item.active:
             item.active = True
+            if tuple(item.location) not in space:
+                continue
             remaining.append(item)
             continue
         item.movement()
-        if item.location[0] < 0 or item.location[0] >= BOARDWIDTH or item.location[1] < 0 or item.location[1] >= BOARDHEIGHT:
+        if tuple(item.location) not in space:
             continue
 
         hit = False
@@ -159,7 +161,7 @@ def updatebullets (play, bullets, targets, necromancers, enemyboss = None):
     return remaining
 
 
-def updatebombs (play, bombs, targets, necromancers, enemyboss = None):
+def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None):
     explosions = set()
     remaining = []
     for item in bombs:
@@ -167,7 +169,7 @@ def updatebombs (play, bombs, targets, necromancers, enemyboss = None):
             remaining.append(item)
             continue
 
-        blast = bombcoordinates(item)
+        blast = bombcoordinates(item,space)
         explosions.update(blast)
         if tuple(play.location) in blast:
             play.attacked()
@@ -187,8 +189,12 @@ def updatebombs (play, bombs, targets, necromancers, enemyboss = None):
     return remaining,explosions
 
 
-def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None):
+def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5):
     entitydict = updatedict(play,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions)
+    if space is not None and explored is not None:
+        visible = visiblecoordinates(play,space,vision)
+        explored.update(visible)
+        entitydict = fogdict(entitydict,space,visible,explored)
     printdict(entitydict)
     interface(play,level,enemyboss,0 if bombs is None else len(bombs))
 
