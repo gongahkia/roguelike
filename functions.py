@@ -1,5 +1,6 @@
 import random
 import time
+from collections import deque
 
 
 #GAME SETTINGS
@@ -134,14 +135,16 @@ class necromancer:
         self.attacksquaremodel1 = '!'
         self.attacksquaremodel2 = '#'
         self.health = health
-        self.xcoord = self.location [0]
         self.attackcounter = 0
+        self.attacklocation = None
+        self.attackradius = 1
 
-    def attack (self):
-        self.attackcounter += 1
-        if self.attackcounter > 2:
-            self.attackcounter = 0
-    #0 is safe, 1 is a forecasted attack, and 2 deals damage
+    def prepareattack (self, playerlocation):
+        self.attacklocation = list(playerlocation)
+        self.attackcounter = 1
+
+    def movement (self, location):
+        self.location = list(location)
 
     def damaged (self, amount = 1):
         self.health -= amount
@@ -162,11 +165,9 @@ class boss:
         self.attackcounter = 0
         self.newattack()
 
-    def newattack (self):
-        self.xcoord = random.randint(0,BOARDWIDTH - 1)
-        self.ycoord = random.randint(0,BOARDHEIGHT - 1)
-        self.xcoord2 = random.randint(0,BOARDWIDTH - 1)
-        self.ycoord2 = random.randint(0,BOARDHEIGHT - 1)
+    def newattack (self, space = None):
+        self.xcoord,self.ycoord = randomlocation(space = space)
+        self.xcoord2,self.ycoord2 = randomlocation(space = space)
 
     def damaged (self, amount = 1):
         self.health -= amount
@@ -187,23 +188,106 @@ class boss:
         self.lines = 'NOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO!'
         self.model = '   (◕﹏◕✿)   '
 
-    def attack (self):
+    def attack (self, space = None):
         self.attackcounter += 1
         if self.attackcounter > 2:
             self.attackcounter = 0
-            self.newattack()
+            self.newattack(space)
 
 
 #GENERAL FUNCTIONS
 
-def randomlocation (occupied = None):
+def randomlocation (occupied = None, space = None):
     if occupied is None:
         occupied = set()
+
+    if space is not None:
+        locations = list(space.difference(occupied))
+        if len(locations) == 0:
+            raise ValueError('No open locations available.')
+        location = random.choice(locations)
+        return [location[0],location[1]]
 
     while True:
         location = [random.randint(1,BOARDWIDTH - 1),random.randint(1,BOARDHEIGHT - 1)]
         if tuple(location) not in occupied:
             return location
+
+
+def carveroom (space, xcoord, ycoord, width, height):
+    for x in range(xcoord,xcoord + width):
+        for y in range(ycoord,ycoord + height):
+            if x > 0 and x < BOARDWIDTH - 1 and y > 0 and y < BOARDHEIGHT - 1:
+                space.add((x,y))
+
+
+def carvecorridor (space, start, finish):
+    xcoord,ycoord = start
+    finishx,finishy = finish
+    if random.choice([True,False]):
+        while xcoord != finishx:
+            space.add((xcoord,ycoord))
+            xcoord += 1 if finishx > xcoord else -1
+        while ycoord != finishy:
+            space.add((xcoord,ycoord))
+            ycoord += 1 if finishy > ycoord else -1
+    else:
+        while ycoord != finishy:
+            space.add((xcoord,ycoord))
+            ycoord += 1 if finishy > ycoord else -1
+        while xcoord != finishx:
+            space.add((xcoord,ycoord))
+            xcoord += 1 if finishx > xcoord else -1
+    space.add((finishx,finishy))
+
+
+def generatespace (start, required = None):
+    space = set()
+    rooms = []
+    startroom = [start[0] - 5,start[1] - 3,11,7]
+    carveroom(space,startroom[0],startroom[1],startroom[2],startroom[3])
+    rooms.append((start[0],start[1]))
+
+    for number in range(random.randint(3,5)):
+        width = random.randint(5,9)
+        height = random.randint(3,6)
+        xcoord = random.randint(1,BOARDWIDTH - width - 1)
+        ycoord = random.randint(1,BOARDHEIGHT - height - 1)
+        carveroom(space,xcoord,ycoord,width,height)
+        centre = (xcoord + width // 2,ycoord + height // 2)
+        carvecorridor(space,rooms[-1],centre)
+        rooms.append(centre)
+
+    if required is not None and len(required) > 0:
+        for coordinate in required:
+            space.add(coordinate)
+        carvecorridor(space,(start[0],start[1]),next(iter(required)))
+    return space
+
+
+def pathfind (start, finish, space, blocked = None):
+    if blocked is None:
+        blocked = set()
+    blocked = set(blocked)
+    blocked.discard(start)
+    blocked.discard(finish)
+    queue = deque([start])
+    previous = {start: None}
+
+    while len(queue) > 0:
+        coordinate = queue.popleft()
+        if coordinate == finish:
+            path = []
+            while coordinate is not None:
+                path.append(coordinate)
+                coordinate = previous[coordinate]
+            return list(reversed(path))
+        xcoord,ycoord = coordinate
+        for adjacent in [(xcoord,ycoord + 1),(xcoord - 1,ycoord),(xcoord,ycoord - 1),(xcoord + 1,ycoord)]:
+            if adjacent in space and adjacent not in blocked and adjacent not in previous:
+                previous[adjacent] = coordinate
+                queue.append(adjacent)
+    return []
 
 
 def clampplayer (player):
@@ -217,7 +301,8 @@ def clampplayer (player):
         player.location[1] = BOARDHEIGHT - 1
 
 
-def moveplayer (player, user):
+def moveplayer (player, user, space = None):
+    previous = list(player.location)
     if player.model == '*':
         if user in ['w','a','s','d']:
             player.face(user)
@@ -227,6 +312,9 @@ def moveplayer (player, user):
         elif user == 'b':
             player.notice = "~You are immobilized. Can't plant bombs!~"
         clampplayer(player)
+        if space is not None and tuple(player.location) not in space:
+            player.location = previous
+            player.notice = '~A wall blocks your path.~'
         return
 
     if player.model == '^' and user == 'w':
@@ -239,6 +327,10 @@ def moveplayer (player, user):
         player.movement(user)
     player.face(user)
     clampplayer(player)
+    if space is not None and tuple(player.location) not in space:
+        player.location = previous
+        if user in ['w','a','s','d']:
+            player.notice = '~A wall blocks your path.~'
 
 
 def attackcoordinates (enemy):
@@ -251,8 +343,12 @@ def attackcoordinates (enemy):
         model = enemy.attacksquaremodel2 if isinstance(enemy, necromancer) else enemy.attacksqmodel2
 
     if isinstance(enemy, necromancer):
-        for y in range(BOARDHEIGHT):
-            attackdict[(enemy.xcoord,y)] = model
+        if enemy.attacklocation is None:
+            return attackdict
+        for x in range(enemy.attacklocation[0] - enemy.attackradius,enemy.attacklocation[0] + enemy.attackradius + 1):
+            for y in range(enemy.attacklocation[1] - enemy.attackradius,enemy.attacklocation[1] + enemy.attackradius + 1):
+                if x >= 0 and x < BOARDWIDTH and y >= 0 and y < BOARDHEIGHT:
+                    attackdict[(x,y)] = model
 
     if isinstance(enemy, boss):
         for x in range(BOARDWIDTH):
@@ -264,22 +360,49 @@ def attackcoordinates (enemy):
     return attackdict
 
 
-def attackplayer (player, enemies):
+def attackplayer (player, enemies, space = None):
     for enemy in enemies:
-        enemy.attack()
-        if enemy.attackcounter == 2:
-            if tuple(player.location) in attackcoordinates(enemy):
-                player.model = '*'
-                player.attacked()
+        if isinstance(enemy, necromancer):
+            if enemy.attackcounter == 0:
+                path = pathfind(tuple(enemy.location),tuple(player.location),space)
+                if len(path) > 0 and len(path) - 1 <= 4:
+                    enemy.prepareattack(player.location)
+                elif len(path) > 1:
+                    enemy.movement(path[1])
+            elif enemy.attackcounter == 1:
+                enemy.attackcounter = 2
+                if tuple(player.location) in attackcoordinates(enemy):
+                    player.model = '*'
+                    player.attacked()
+                    player.notice = '~Necromancer spell struck you.~'
+            else:
+                enemy.attackcounter = 0
+                enemy.attacklocation = None
+        else:
+            enemy.attack(space)
+            if enemy.attackcounter == 2:
+                if tuple(player.location) in attackcoordinates(enemy):
+                    player.model = '*'
+                    player.attacked()
 
 
-def bombcoordinates (item):
+def bombcoordinates (item, space = None):
     blast = set()
-    for x in range(item.location[0] - item.radius,item.location[0] + item.radius + 1):
-        for y in range(item.location[1] - item.radius,item.location[1] + item.radius + 1):
-            if abs(x - item.location[0]) + abs(y - item.location[1]) <= item.radius:
-                if x >= 0 and x < BOARDWIDTH and y >= 0 and y < BOARDHEIGHT:
-                    blast.add((x,y))
+    queue = deque([(tuple(item.location),0)])
+    while len(queue) > 0:
+        coordinate,distance = queue.popleft()
+        if coordinate in blast or distance > item.radius:
+            continue
+        if coordinate[0] < 0 or coordinate[0] >= BOARDWIDTH or coordinate[1] < 0 or coordinate[1] >= BOARDHEIGHT:
+            continue
+        if space is not None and coordinate not in space:
+            continue
+        blast.add(coordinate)
+        xcoord,ycoord = coordinate
+        queue.append(((xcoord,ycoord + 1),distance + 1))
+        queue.append(((xcoord - 1,ycoord),distance + 1))
+        queue.append(((xcoord,ycoord - 1),distance + 1))
+        queue.append(((xcoord + 1,ycoord),distance + 1))
     return blast
 
 
