@@ -33,6 +33,7 @@ COLOURS = {
     'a': YELLOW,
     '&': YELLOW,
     'B': MAGENTA,
+    '+': YELLOW,
     '!': RED,
     '#': BLUE,
     '*': YELLOW,
@@ -164,6 +165,7 @@ class necromancer:
     def __init__ (self, location = None, model = 'N', health = 3):
         self.location = randomlocation() if location is None else list(location)
         self.model = model
+        self.attackloadmodel = '+'
         self.attacksquaremodel1 = '!'
         self.attacksquaremodel2 = '#'
         self.health = health
@@ -370,11 +372,12 @@ def attackcoordinates (enemy):
     if enemy.attackcounter == 0:
         return attackdict
 
-    model = enemy.attacksquaremodel1 if isinstance(enemy, necromancer) else enemy.attacksqmodel1
-    if enemy.attackcounter == 2:
-        model = enemy.attacksquaremodel2 if isinstance(enemy, necromancer) else enemy.attacksqmodel2
-
     if isinstance(enemy, necromancer):
+        model = enemy.attackloadmodel
+        if enemy.attackcounter == 2:
+            model = enemy.attacksquaremodel1
+        if enemy.attackcounter == 3:
+            model = enemy.attacksquaremodel2
         if enemy.attacklocation is None:
             return attackdict
         for x in range(enemy.attacklocation[0] - enemy.attackradius,enemy.attacklocation[0] + enemy.attackradius + 1):
@@ -383,6 +386,9 @@ def attackcoordinates (enemy):
                     attackdict[(x,y)] = model
 
     if isinstance(enemy, boss):
+        model = enemy.attacksqmodel1
+        if enemy.attackcounter == 2:
+            model = enemy.attacksqmodel2
         for x in range(BOARDWIDTH):
             attackdict[(x,enemy.ycoord)] = model
             attackdict[(x,enemy.ycoord2)] = model
@@ -407,6 +413,8 @@ def attackplayer (player, enemies, space = None):
                     enemy.movement(path[1])
             elif enemy.attackcounter == 1:
                 enemy.attackcounter = 2
+            elif enemy.attackcounter == 2:
+                enemy.attackcounter = 3
                 if tuple(player.location) in attackcoordinates(enemy):
                     player.model = '*'
                     player.attacked()
