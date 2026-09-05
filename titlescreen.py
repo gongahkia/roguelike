@@ -1,3 +1,6 @@
+from functions import printscreen
+
+
 def titlescreen ():
     permdict = {}
     for y in range (0,5):
@@ -37,12 +40,10 @@ def titlescreen ():
         permdict [y] = string
         string = ''
 
-    #print (permdict)
-
-    print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+    lines = []
     for x,y in (permdict.items()):
-        print (f'X{y}X')
-    print ('X          ~@gongahkia on Github~         X')
-    print ('X                                         X')
-    print ('X                                         X')
-    print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+        lines.append(y)
+    lines.append('          ~@gongahkia on Github~         ')
+    lines.append('')
+    lines.append('')
+    printscreen(lines)

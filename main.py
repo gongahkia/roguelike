@@ -1,5 +1,5 @@
 from titlescreen import titlescreen
-from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, attackplayer, bombcoordinates, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, printdict, interface, clearscreen, promptinput, threatconlvl, runshop
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, attackplayer, bombcoordinates, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, printdict, interface, promptinput, threatconlvl, runshop
 
 
 #GAME SETTINGS
@@ -15,7 +15,6 @@ STAGES = [
 
 def startgame ():
     while True:
-        clearscreen()
         titlescreen()
         user = promptinput('[Y/N]: ')
         if user == 'y':
