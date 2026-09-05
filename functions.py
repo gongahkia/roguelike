@@ -197,11 +197,30 @@ class boss:
         self.attacksqmodel2 = '#'
         self.lines = 'PuNy MoRtAl, yoU dArE cHalLenGE mE?'
         self.attackcounter = 0
+        self.attacktype = 'crossfire'
+        self.attackname = 'CROSSFIRE'
+        self.attackradius = 3
         self.newattack()
+
+    def availableattacks (self):
+        attacks = ['crossfire']
+        if self.health < 8:
+            attacks.append('diagonal')
+        if self.health < 4:
+            attacks.append('pulse')
+        return attacks
 
     def newattack (self, space = None):
         self.xcoord,self.ycoord = randomlocation(space = space)
         self.xcoord2,self.ycoord2 = randomlocation(space = space)
+        self.attacktype = random.choice(self.availableattacks())
+        self.attackradius = random.randint(2,4)
+        if self.attacktype == 'crossfire':
+            self.attackname = 'CROSSFIRE'
+        elif self.attacktype == 'diagonal':
+            self.attackname = 'DIAGONAL SWEEP'
+        elif self.attacktype == 'pulse':
+            self.attackname = 'ARCANE PULSE'
 
     def damaged (self, amount = 1):
         self.health -= amount
@@ -389,12 +408,27 @@ def attackcoordinates (enemy):
         model = enemy.attacksqmodel1
         if enemy.attackcounter == 2:
             model = enemy.attacksqmodel2
-        for x in range(BOARDWIDTH):
-            attackdict[(x,enemy.ycoord)] = model
-            attackdict[(x,enemy.ycoord2)] = model
-        for y in range(BOARDHEIGHT):
-            attackdict[(enemy.xcoord,y)] = model
-            attackdict[(enemy.xcoord2,y)] = model
+        if enemy.attacktype == 'crossfire':
+            for x in range(BOARDWIDTH):
+                attackdict[(x,enemy.ycoord)] = model
+                attackdict[(x,enemy.ycoord2)] = model
+            for y in range(BOARDHEIGHT):
+                attackdict[(enemy.xcoord,y)] = model
+                attackdict[(enemy.xcoord2,y)] = model
+        elif enemy.attacktype == 'diagonal':
+            for y in range(BOARDHEIGHT):
+                firstx = enemy.xcoord + (y - enemy.ycoord)
+                secondx = enemy.xcoord - (y - enemy.ycoord)
+                if firstx >= 0 and firstx < BOARDWIDTH:
+                    attackdict[(firstx,y)] = model
+                if secondx >= 0 and secondx < BOARDWIDTH:
+                    attackdict[(secondx,y)] = model
+        elif enemy.attacktype == 'pulse':
+            for x in range(enemy.xcoord - enemy.attackradius,enemy.xcoord + enemy.attackradius + 1):
+                for y in range(enemy.ycoord - enemy.attackradius,enemy.ycoord + enemy.attackradius + 1):
+                    if x >= 0 and x < BOARDWIDTH and y >= 0 and y < BOARDHEIGHT:
+                        if abs(x - enemy.xcoord) + abs(y - enemy.ycoord) == enemy.attackradius:
+                            attackdict[(x,y)] = model
     return attackdict
 
 
@@ -623,6 +657,8 @@ def hudlines (player, level = None, enemyboss = None, armedbombs = 0):
         lines.append(f'      THREATCON: {level}')
     if enemyboss is not None:
         lines.append(f'      BOSS HEALTH: {enemyboss.health}')
+        if enemyboss.attackcounter == 1:
+            lines.append(f'      BOSS WINDUP: {enemyboss.attackname}')
         lines.append(f'    {enemyboss.lines}')
         lines.append('    -----------------------------------')
     lines.append(f'      HEALTH: {player.health}')
