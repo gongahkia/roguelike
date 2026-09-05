@@ -162,7 +162,7 @@ class target:
 
 class necromancer:
 
-    def __init__ (self, location = None, model = 'N', health = 3):
+    def __init__ (self, location = None, model = 'N', health = 2):
         self.location = randomlocation() if location is None else list(location)
         self.model = model
         self.attackloadmodel = '+'
@@ -395,7 +395,7 @@ def attackcoordinates (enemy):
         model = enemy.attackloadmodel
         if enemy.attackcounter == 2:
             model = enemy.attacksquaremodel1
-        if enemy.attackcounter == 3:
+        if enemy.attackcounter == 4:
             model = enemy.attacksquaremodel2
         if enemy.attacklocation is None:
             return attackdict
@@ -449,6 +449,8 @@ def attackplayer (player, enemies, space = None):
                 enemy.attackcounter = 2
             elif enemy.attackcounter == 2:
                 enemy.attackcounter = 3
+            elif enemy.attackcounter == 3:
+                enemy.attackcounter = 4
                 if tuple(player.location) in attackcoordinates(enemy):
                     player.model = '*'
                     player.attacked()

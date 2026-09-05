@@ -10,4 +10,4 @@ To try it, download all the files within this folder, make sure they're in the s
 
 Gameplay controls use a single keypress; do not press Enter after `w`, `a`, `s`, `d`, `e`, `b`, `y`, or `n`.
 
-Necromancer spells display `+` while loading, `!` while winding up, and `#` when they strike.
+Necromancer spells display `+` while loading, `!` for two windup turns, and `#` when they strike.
