@@ -11,3 +11,5 @@ To try it, download all the files within this folder, make sure they're in the s
 Gameplay controls use a single keypress; do not press Enter after `w`, `a`, `s`, `d`, `e`, `b`, `y`, or `n`.
 
 Necromancer spells display `+` while loading, `!` for two windup turns, and `#` when they strike.
+
+Every level starts with one bomb. Bombs damage enemies and destroy interior walls in their diamond-shaped blast area.

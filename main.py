@@ -1,5 +1,5 @@
 from titlescreen import titlescreen
-from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, attackplayer, bombcoordinates, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, printdict, interface, promptinput, threatconlvl, runshop
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, printdict, interface, promptinput, threatconlvl, runshop
 
 
 #GAME SETTINGS
@@ -175,6 +175,7 @@ def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None):
             remaining.append(item)
             continue
 
+        destroyterrain(item,space)
         blast = bombcoordinates(item,space)
         explosions.update(blast)
         if tuple(play.location) in blast:
@@ -210,6 +211,7 @@ def printgame (play, level = None, targets = None, necromancers = None, bullets 
 def runstage (settings):
     play = player()
     play.ammo = settings['ammo']
+    play.bombs = 1
     space = generatespace(play.location)
     explored = set()
     targets,necromancers,bullets,bombs,ammopickup = createstageentities(settings,play,space)
@@ -234,6 +236,8 @@ def resetplayer (play):
     play.location = [20,9]
     play.model = '^'
     play.score = 0
+    if play.bombs < 1:
+        play.bombs = 1
     play.status = 'alive'
     play.notice = ''
 

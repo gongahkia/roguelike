@@ -162,7 +162,7 @@ class target:
 
 class necromancer:
 
-    def __init__ (self, location = None, model = 'N', health = 2):
+    def __init__ (self, location = None, model = 'N', health = 1):
         self.location = randomlocation() if location is None else list(location)
         self.model = model
         self.attackloadmodel = '+'
@@ -484,6 +484,19 @@ def bombcoordinates (item, space = None):
         queue.append(((xcoord,ycoord - 1),distance + 1))
         queue.append(((xcoord + 1,ycoord),distance + 1))
     return blast
+
+
+def destroyterrain (item, space):
+    destroyed = set()
+    for x in range(item.location[0] - item.radius,item.location[0] + item.radius + 1):
+        for y in range(item.location[1] - item.radius,item.location[1] + item.radius + 1):
+            coordinate = (x,y)
+            if abs(x - item.location[0]) + abs(y - item.location[1]) <= item.radius:
+                if x > 0 and x < BOARDWIDTH - 1 and y > 0 and y < BOARDHEIGHT - 1:
+                    if coordinate not in space:
+                        space.add(coordinate)
+                        destroyed.add(coordinate)
+    return destroyed
 
 
 def bosshitbox (enemy):
