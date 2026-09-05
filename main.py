@@ -52,6 +52,12 @@ def openlocation (play, targets, necromancers, bullets, bombs, ammopickup = None
     return randomlocation(occupied,space)
 
 
+def targetspace (settings, play, space):
+    if settings['level'] == 0:
+        return space.intersection(visiblecoordinates(play,space,settings['vision']))
+    return space
+
+
 def createstageentities (settings, play, space):
     targets = []
     necromancers = []
@@ -59,7 +65,7 @@ def createstageentities (settings, play, space):
     bombs = []
 
     for number in range(settings['targets']):
-        location = openlocation(play,targets,necromancers,bullets,bombs,space = space)
+        location = openlocation(play,targets,necromancers,bullets,bombs,space = targetspace(settings,play,space))
         targets.append(target(location))
     for number in range(settings['necromancers']):
         location = openlocation(play,targets,necromancers,bullets,bombs,space = space)
@@ -71,7 +77,7 @@ def createstageentities (settings, play, space):
 
 def refillstageentities (settings, play, targets, necromancers, bullets, bombs, ammopickup, space):
     while len(targets) < settings['targets']:
-        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,space = space)
+        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,space = targetspace(settings,play,space))
         targets.append(target(location))
     while len(necromancers) < settings['necromancers']:
         location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,space = space)
