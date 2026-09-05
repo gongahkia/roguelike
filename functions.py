@@ -36,6 +36,7 @@ COLOURS = {
     '+': YELLOW,
     '!': RED,
     '#': BLUE,
+    'x': YELLOW,
     '*': YELLOW,
     '?': GREY,
     '.': GREY
@@ -580,18 +581,23 @@ def visiblecoordinates (player, space, radius = 5):
     return visible
 
 
-def fogdict (entitydict, space, visible, explored):
+def fogdict (entitydict, space, visible, explored, destroyedwalls = None):
     foggeddict = {}
+    destroyedwalls = set() if destroyedwalls is None else destroyedwalls
     for x in range(BOARDWIDTH):
         for y in range(BOARDHEIGHT):
             coordinate = (x,y)
             if coordinate in visible:
                 if coordinate in entitydict:
                     foggeddict[coordinate] = entitydict[coordinate]
+                elif coordinate in destroyedwalls:
+                    foggeddict[coordinate] = 'x'
                 elif coordinate not in space:
                     foggeddict[coordinate] = '#'
             elif coordinate in explored:
-                if coordinate in space:
+                if coordinate in destroyedwalls:
+                    foggeddict[coordinate] = 'x'
+                elif coordinate in space:
                     foggeddict[coordinate] = '.'
                 else:
                     foggeddict[coordinate] = '#'
@@ -600,13 +606,16 @@ def fogdict (entitydict, space, visible, explored):
     return foggeddict
 
 
-def mapdict (entitydict, space):
+def mapdict (entitydict, space, destroyedwalls = None):
     mapentities = {}
+    destroyedwalls = set() if destroyedwalls is None else destroyedwalls
     for x in range(BOARDWIDTH):
         for y in range(BOARDHEIGHT):
             coordinate = (x,y)
             if coordinate in entitydict:
                 mapentities[coordinate] = entitydict[coordinate]
+            elif coordinate in destroyedwalls:
+                mapentities[coordinate] = 'x'
             elif coordinate not in space:
                 mapentities[coordinate] = '#'
     return mapentities

@@ -166,7 +166,7 @@ def updatebullets (play, bullets, targets, necromancers, space, enemyboss = None
     return remaining
 
 
-def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None):
+def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None, destroyedwalls = None):
     explosions = set()
     remaining = []
     for item in bombs:
@@ -174,7 +174,9 @@ def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None):
             remaining.append(item)
             continue
 
-        destroyterrain(item,space)
+        destroyed = destroyterrain(item,space)
+        if destroyedwalls is not None:
+            destroyedwalls.update(destroyed)
         blast = bombcoordinates(item,space)
         explosions.update(blast)
         if tuple(play.location) in blast:
@@ -195,15 +197,15 @@ def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None):
     return remaining,explosions
 
 
-def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5):
+def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5, destroyedwalls = None):
     entitydict = updatedict(play,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions)
     if space is not None:
         if explored is None:
-            entitydict = mapdict(entitydict,space)
+            entitydict = mapdict(entitydict,space,destroyedwalls)
         else:
             visible = visiblecoordinates(play,space,vision)
             explored.update(visible)
-            entitydict = fogdict(entitydict,space,visible,explored)
+            entitydict = fogdict(entitydict,space,visible,explored,destroyedwalls)
     printdict(entitydict)
     interface(play,level,enemyboss,0 if bombs is None else len(bombs))
 
@@ -216,8 +218,9 @@ def runstage (settings):
     play.bombs = 1
     space = generatespace(play.location)
     explored = set()
+    destroyedwalls = set()
     targets,necromancers,bullets,bombs,ammopickup = createstageentities(settings,play,space)
-    printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,space = space,explored = explored,vision = settings['vision'])
+    printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,space = space,explored = explored,vision = settings['vision'],destroyedwalls = destroyedwalls)
 
     while play.health > 0 and play.score < settings['score']:
         user = promptinput('[W/A/S/D/E/B]: ')
@@ -225,10 +228,10 @@ def runstage (settings):
         playeraction(play,user,bullets,bombs,space)
         ammopickup = collectammo(play,ammopickup)
         bullets = updatebullets(play,bullets,targets,necromancers,space)
-        bombs,explosions = updatebombs(play,bombs,targets,necromancers,space)
+        bombs,explosions = updatebombs(play,bombs,targets,necromancers,space,destroyedwalls = destroyedwalls)
         attackplayer(play,necromancers,space)
         ammopickup = refillstageentities(settings,play,targets,necromancers,bullets,bombs,ammopickup,space)
-        printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions,space,explored,settings['vision'])
+        printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions,space,explored,settings['vision'],destroyedwalls)
     return play
 
 
@@ -252,10 +255,11 @@ def runboss (play):
     bullets = []
     bombs = []
     space = generatespace(play.location,bosshitbox(enemyboss))
+    destroyedwalls = set()
     enemyboss.newattack(space)
     location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss),space)
     ammopickup = ammo(location)
-    printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space)
+    printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space,destroyedwalls = destroyedwalls)
 
     while play.health > 0 and enemyboss.health > 0:
         user = promptinput('[W/A/S/D/E/B]: ')
@@ -266,14 +270,14 @@ def runboss (play):
             location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss),space)
             ammopickup = ammo(location)
         bullets = updatebullets(play,bullets,targets,necromancers,space,enemyboss)
-        bombs,explosions = updatebombs(play,bombs,targets,necromancers,space,enemyboss)
+        bombs,explosions = updatebombs(play,bombs,targets,necromancers,space,enemyboss,destroyedwalls)
         if enemyboss.health > 0:
             attackplayer(play,[enemyboss],space)
-        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,space)
+        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,space,destroyedwalls = destroyedwalls)
 
     if enemyboss.health <= 0 and play.health > 0:
         enemyboss.destroyed()
-        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space)
+        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space,destroyedwalls = destroyedwalls)
         print ('          ~You have won the game~         ')
         return True
     return False
