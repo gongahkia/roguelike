@@ -7,6 +7,30 @@ from collections import deque
 
 BOARDWIDTH = 41
 BOARDHEIGHT = 19
+RESET = '\033[0m'
+CYAN = '\033[96m'
+YELLOW = '\033[93m'
+RED = '\033[91m'
+MAGENTA = '\033[95m'
+GREY = '\033[90m'
+
+COLOURS = {
+    '^': CYAN,
+    '<': CYAN,
+    'V': CYAN,
+    '>': CYAN,
+    'F': RED,
+    't': RED,
+    'N': MAGENTA,
+    'a': YELLOW,
+    '&': YELLOW,
+    'B': MAGENTA,
+    '!': RED,
+    '#': RED,
+    '*': YELLOW,
+    '?': GREY,
+    '.': GREY
+}
 
 
 #CLASS OBJECTS
@@ -515,16 +539,34 @@ def clearscreen ():
     print ('\033[2J\033[H',end = '')
 
 
+def colourtext (text, colour):
+    return f'{colour}{text}{RESET}'
+
+
+def colourboardline (line):
+    colouredline = ''
+    for glyph in line:
+        if glyph in COLOURS:
+            colouredline += colourtext(glyph,COLOURS[glyph])
+        else:
+            colouredline += glyph
+    return colouredline
+
+
 def promptinput (prompt):
-    return input(f'{prompt:^{BOARDWIDTH}}').lower()
+    return input(colourtext(f'{prompt:^{BOARDWIDTH}}',CYAN)).lower()
 
 
-def printscreen (lines):
+def printscreen (lines, gameboard = False):
     clearscreen()
-    print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+    print (colourtext('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',CYAN))
     for line in lines:
-        print (f'X{line[:BOARDWIDTH].ljust(BOARDWIDTH)}X')
-    print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+        line = line[:BOARDWIDTH].ljust(BOARDWIDTH)
+        if gameboard:
+            line = colourboardline(line)
+        border = colourtext('X',CYAN)
+        print (f'{border}{line}{border}')
+    print (colourtext('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',CYAN))
 
 
 def printdict (entitydict):
@@ -534,7 +576,7 @@ def printdict (entitydict):
         for x in range(BOARDWIDTH):
             string += entitydict.get((x,y),' ')
         lines.append(string)
-    printscreen(lines)
+    printscreen(lines,True)
 
 
 #HUD
@@ -560,7 +602,7 @@ def hudlines (player, level = None, enemyboss = None, armedbombs = 0):
 def interface (player, level = None, enemyboss = None, armedbombs = 0):
     for line in hudlines(player,level,enemyboss,armedbombs):
         for part in line.splitlines():
-            print(part.center(BOARDWIDTH))
+            print(colourtext(part.center(BOARDWIDTH),CYAN))
 
 
 def interface2 (player, enemyboss, armedbombs = 0):
