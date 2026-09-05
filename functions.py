@@ -364,7 +364,11 @@ def attackplayer (player, enemies, space = None):
     for enemy in enemies:
         if isinstance(enemy, necromancer):
             if enemy.attackcounter == 0:
-                path = pathfind(tuple(enemy.location),tuple(player.location),space)
+                blocked = set()
+                for other in enemies:
+                    if other is not enemy and isinstance(other, necromancer):
+                        blocked.add(tuple(other.location))
+                path = pathfind(tuple(enemy.location),tuple(player.location),space,blocked)
                 if len(path) > 0 and len(path) - 1 <= 4:
                     enemy.prepareattack(player.location)
                 elif len(path) > 1:
@@ -507,7 +511,16 @@ def fogdict (entitydict, space, visible, explored):
     return foggeddict
 
 
+def clearscreen ():
+    print ('\033[2J\033[H',end = '')
+
+
+def promptinput (prompt):
+    return input(f'{prompt:^{BOARDWIDTH}}').lower()
+
+
 def printscreen (lines):
+    clearscreen()
     print ('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
     for line in lines:
         print (f'X{line[:BOARDWIDTH].ljust(BOARDWIDTH)}X')
@@ -545,7 +558,9 @@ def hudlines (player, level = None, enemyboss = None, armedbombs = 0):
 
 
 def interface (player, level = None, enemyboss = None, armedbombs = 0):
-    print('\n'.join(hudlines(player,level,enemyboss,armedbombs)))
+    for line in hudlines(player,level,enemyboss,armedbombs):
+        for part in line.splitlines():
+            print(part.center(BOARDWIDTH))
 
 
 def interface2 (player, enemyboss, armedbombs = 0):
@@ -643,7 +658,7 @@ def runshop (num, player):
 
     while True:
         s.printscreen(player,num)
-        user = input ('[W/S/B/V/E]: ').lower()
+        user = promptinput('[W/S/B/V/E]: ')
         if user == 'w' or user == 's':
             s.move(user)
         elif user == 'b':
@@ -651,7 +666,8 @@ def runshop (num, player):
         elif user == 'v':
             num = s.sell(player,num)
         elif user == 'e':
-            exitinput = input ('Would you like to continue to the next stage?\n[Y/N]: ').lower()
+            print ('Would you like to continue to the next stage?'.center(BOARDWIDTH))
+            exitinput = promptinput('[Y/N]: ')
             if exitinput == 'y':
                 return player
             if exitinput == 'n':

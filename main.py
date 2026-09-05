@@ -1,5 +1,5 @@
 from titlescreen import titlescreen
-from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, attackplayer, bombcoordinates, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, printdict, interface, threatconlvl, runshop
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, attackplayer, bombcoordinates, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, printdict, interface, clearscreen, promptinput, threatconlvl, runshop
 
 
 #GAME SETTINGS
@@ -15,8 +15,9 @@ STAGES = [
 
 def startgame ():
     while True:
+        clearscreen()
         titlescreen()
-        user = input ('[Y/N]: ').lower()
+        user = promptinput('[Y/N]: ')
         if user == 'y':
             return True
         if user == 'n':
@@ -27,7 +28,7 @@ def startgame ():
 def continuestage (level):
     while True:
         threatconlvl(level)
-        acknowledgement = input('[Y to continue/N to leave]: ').lower()
+        acknowledgement = promptinput('[Y to continue/N to leave]: ')
         if acknowledgement == 'y':
             return True
         if acknowledgement == 'n':
@@ -204,19 +205,21 @@ def printgame (play, level = None, targets = None, necromancers = None, bullets 
 def runstage (settings):
     play = player()
     play.ammo = settings['ammo']
-    targets,necromancers,bullets,bombs,ammopickup = createstageentities(settings,play)
-    printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup)
+    space = generatespace(play.location)
+    explored = set()
+    targets,necromancers,bullets,bombs,ammopickup = createstageentities(settings,play,space)
+    printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,space = space,explored = explored,vision = settings['vision'])
 
     while play.health > 0 and play.score < settings['score']:
-        user = input('[W/A/S/D/E/B]: ').lower()
+        user = promptinput('[W/A/S/D/E/B]: ')
         play.notice = ''
-        playeraction(play,user,bullets,bombs)
+        playeraction(play,user,bullets,bombs,space)
         ammopickup = collectammo(play,ammopickup)
-        bullets = updatebullets(play,bullets,targets,necromancers)
-        bombs,explosions = updatebombs(play,bombs,targets,necromancers)
-        attackplayer(play,necromancers)
-        ammopickup = refillstageentities(settings,play,targets,necromancers,bullets,bombs,ammopickup)
-        printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions)
+        bullets = updatebullets(play,bullets,targets,necromancers,space)
+        bombs,explosions = updatebombs(play,bombs,targets,necromancers,space)
+        attackplayer(play,necromancers,space)
+        ammopickup = refillstageentities(settings,play,targets,necromancers,bullets,bombs,ammopickup,space)
+        printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions,space,explored,settings['vision'])
     return play
 
 
@@ -237,27 +240,30 @@ def runboss (play):
     necromancers = []
     bullets = []
     bombs = []
-    location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss))
+    space = generatespace(play.location,bosshitbox(enemyboss))
+    explored = set()
+    enemyboss.newattack(space)
+    location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss),space)
     ammopickup = ammo(location)
-    printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss)
+    printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space,explored = explored)
 
     while play.health > 0 and enemyboss.health > 0:
-        user = input('[W/A/S/D/E/B]: ').lower()
+        user = promptinput('[W/A/S/D/E/B]: ')
         play.notice = ''
-        playeraction(play,user,bullets,bombs)
+        playeraction(play,user,bullets,bombs,space)
         ammopickup = collectammo(play,ammopickup)
         if ammopickup is None:
-            location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss))
+            location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss),space)
             ammopickup = ammo(location)
-        bullets = updatebullets(play,bullets,targets,necromancers,enemyboss)
-        bombs,explosions = updatebombs(play,bombs,targets,necromancers,enemyboss)
+        bullets = updatebullets(play,bullets,targets,necromancers,space,enemyboss)
+        bombs,explosions = updatebombs(play,bombs,targets,necromancers,space,enemyboss)
         if enemyboss.health > 0:
-            attackplayer(play,[enemyboss])
-        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions)
+            attackplayer(play,[enemyboss],space)
+        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,space,explored)
 
     if enemyboss.health <= 0 and play.health > 0:
         enemyboss.destroyed()
-        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss)
+        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space,explored = explored)
         print ('          ~You have won the game~         ')
         return True
     return False
