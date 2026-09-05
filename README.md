@@ -13,3 +13,5 @@ Gameplay controls use a single keypress; do not press Enter after `w`, `a`, `s`,
 Necromancer spells display `+` while loading, `!` for two windup turns, and `#` when they strike.
 
 Every level starts with one bomb. Bombs damage enemies and destroy interior walls in their diamond-shaped blast area.
+
+At the title screen, use `0`, `1`, `2`, or `3` to start Threatcon 0, 1, 2, or the boss fight directly for debugging.

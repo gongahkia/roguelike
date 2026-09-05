@@ -31,10 +31,14 @@ def titlescreen ():
         permdict [y] = string
         string = ''
     for y in range (11,12):
-        string = '            PRESS [Y] TO PLAY            '
+        string = '        PRESS [Y] FOR CAMPAIGN        '
         permdict [y] = string
         string = ''
-    for y in range (12,16):
+    for y in range (12,13):
+        string = '       DEBUG: [0] [1] [2] [3]       '
+        permdict [y] = string
+        string = ''
+    for y in range (13,16):
         for x in range (41):
             string += ' '
         permdict [y] = string

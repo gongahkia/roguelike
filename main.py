@@ -16,12 +16,13 @@ STAGES = [
 def startgame ():
     while True:
         titlescreen()
-        user = promptinput('[Y/N]: ')
+        user = promptinput('[Y/N/0/1/2/3]: ')
         if user == 'y':
-            return True
+            return 'campaign'
         if user == 'n':
-            print ('Okay. Hope to see you again!')
-            return False
+            return None
+        if user in ['0','1','2','3']:
+            return user
 
 
 def continuestage (level):
@@ -278,8 +279,22 @@ def runboss (play):
     return False
 
 
+def rundebuglevel (level):
+    if level < len(STAGES):
+        runstage(STAGES[level])
+        return
+    play = player()
+    play.bombs = 1
+    runboss(play)
+
+
 def rungame ():
-    if not startgame():
+    selection = startgame()
+    if selection is None:
+        print ('Okay. Hope to see you again!')
+        return
+    if selection != 'campaign':
+        rundebuglevel(int(selection))
         return
 
     totscore = 0
