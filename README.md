@@ -1,8 +1,8 @@
-# `Roguelike` 🧌
+# `Roguelike`
 
 ## Abstract
 
-This is the final iteration of a small game I worked on over the span of 2 consecutive days, in an effort to familiarise myself with OOP. This game is played in Command Prompt.
+This is the final iteration of a small game I worked on over the span of 2 consecutive days, in an effort to familiarise myself with OOP.
 
 ## Usage 
 
