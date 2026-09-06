@@ -1,5 +1,5 @@
 from titlescreen import titlescreen
-from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, torch, door, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, dashplayer, activateward, tickplayerabilities, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, lightcoordinates, fogdict, mapdict, printgameframe, hudlines, promptinput, threatconlvl, cursemodifiers, cursebag, runcurseshop, runshop, icon
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, flare, torch, door, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, dashplayer, tickplayerabilities, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, lightcoordinates, fogdict, mapdict, printgameframe, hudlines, promptinput, threatconlvl, cursemodifiers, cursebag, runcurseshop, runshop, icon
 
 
 #GAME SETTINGS
@@ -34,9 +34,10 @@ def continuestage (level, bag = None):
             return None
 
 
-def occupiedcoordinates (play, targets, necromancers, bullets, bombs, ammopickup = None, blocked = None, torches = None):
+def occupiedcoordinates (play, targets, necromancers, bullets, bombs, ammopickup = None, blocked = None, torches = None, flares = None):
     occupied = {tuple(play.location)}
-    for item in targets + necromancers + bullets + bombs:
+    flares = [] if flares is None else flares
+    for item in targets + necromancers + bullets + bombs + flares:
         occupied.add(tuple(item.location))
     if ammopickup is not None:
         occupied.add(tuple(ammopickup.location))
@@ -48,8 +49,8 @@ def occupiedcoordinates (play, targets, necromancers, bullets, bombs, ammopickup
     return occupied
 
 
-def openlocation (play, targets, necromancers, bullets, bombs, ammopickup = None, blocked = None, space = None, torches = None):
-    occupied = occupiedcoordinates(play,targets,necromancers,bullets,bombs,ammopickup,blocked,torches)
+def openlocation (play, targets, necromancers, bullets, bombs, ammopickup = None, blocked = None, space = None, torches = None, flares = None):
+    occupied = occupiedcoordinates(play,targets,necromancers,bullets,bombs,ammopickup,blocked,torches,flares)
     return randomlocation(occupied,space)
 
 
@@ -64,31 +65,32 @@ def createstageentities (settings, play, space):
     necromancers = []
     bullets = []
     bombs = []
+    flares = []
     torches = []
 
     for number in range(settings['torches']):
-        location = openlocation(play,targets,necromancers,bullets,bombs,space = space,torches = torches)
+        location = openlocation(play,targets,necromancers,bullets,bombs,space = space,torches = torches,flares = flares)
         torches.append(torch(location,settings.get('torchradius',4)))
     for number in range(settings['targets']):
-        location = openlocation(play,targets,necromancers,bullets,bombs,space = targetspace(settings,play,space),torches = torches)
+        location = openlocation(play,targets,necromancers,bullets,bombs,space = targetspace(settings,play,space),torches = torches,flares = flares)
         targets.append(target(location))
     for number in range(settings['necromancers']):
-        location = openlocation(play,targets,necromancers,bullets,bombs,space = space,torches = torches)
+        location = openlocation(play,targets,necromancers,bullets,bombs,space = space,torches = torches,flares = flares)
         necromancers.append(necromancer(location))
-    location = openlocation(play,targets,necromancers,bullets,bombs,space = space,torches = torches)
+    location = openlocation(play,targets,necromancers,bullets,bombs,space = space,torches = torches,flares = flares)
     ammopickup = ammo(location)
-    return targets,necromancers,bullets,bombs,ammopickup,torches
+    return targets,necromancers,bullets,bombs,flares,ammopickup,torches
 
 
-def refillstageentities (settings, play, targets, necromancers, bullets, bombs, ammopickup, space, torches):
+def refillstageentities (settings, play, targets, necromancers, bullets, bombs, ammopickup, space, torches, flares):
     while len(targets) < settings['targets']:
-        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,space = targetspace(settings,play,space),torches = torches)
+        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,space = targetspace(settings,play,space),torches = torches,flares = flares)
         targets.append(target(location))
     while len(necromancers) < settings['necromancers']:
-        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,space = space,torches = torches)
+        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,space = space,torches = torches,flares = flares)
         necromancers.append(necromancer(location))
     if ammopickup is None:
-        location = openlocation(play,targets,necromancers,bullets,bombs,space = space,torches = torches)
+        location = openlocation(play,targets,necromancers,bullets,bombs,space = space,torches = torches,flares = flares)
         ammopickup = ammo(location)
     return ammopickup
 
@@ -101,14 +103,13 @@ def collectammo (play, ammopickup):
     return ammopickup
 
 
-def playeraction (play, user, bullets, bombs, space):
+def playeraction (play, user, bullets, bombs, space, flares = None):
+    flares = [] if flares is None else flares
     moveplayer(play,user,space)
     if play.model == icon('player_hit') or play.health <= 0:
         return
     if user == 'q':
         dashplayer(play,space)
-    if user == 'r':
-        activateward(play)
     if user == 'e':
         if play.shoot():
             bullets.append(bullet(play.model,play.location,play.bulletrange))
@@ -121,6 +122,13 @@ def playeraction (play, user, bullets, bombs, space):
             bombs.append(bomb(play.location,play.bombfuse,play.bombradius))
             play.bombs -= 1
             play.notice = '~Bomb armed. Move away before it explodes.~'
+    if user == 'f':
+        if play.flares <= 0:
+            play.notice = '~No flares left. Buy flares in the shop.~'
+        else:
+            flares.append(flare(play.location))
+            play.flares -= 1
+            play.notice = '~Flare lit. Necromancers will be stunned.~'
 
 
 def targetdestroyed (play, item, targets):
@@ -193,8 +201,6 @@ def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None, de
         if tuple(play.location) in blast:
             if play.attacked():
                 play.notice = '~You were caught in the blast.~'
-            else:
-                play.notice = '~Your ward absorbed the blast.~'
         for enemy in list(targets):
             if tuple(enemy.location) in blast:
                 targetdestroyed(play,enemy,targets)
@@ -210,16 +216,31 @@ def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None, de
     return remaining,explosions
 
 
-def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5, destroyedwalls = None, scoregoal = 5, torches = None, exitdoor = None, revealed = False, curse = None):
-    entitydict = updatedict(play,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,torches,exitdoor)
+def updateflares (flares, necromancers, space):
+    explosions = set()
+    remaining = []
+    for item in flares:
+        if not item.tick():
+            remaining.append(item)
+            continue
+        blast = bombcoordinates(item,space)
+        explosions.update(blast)
+        for enemy in necromancers:
+            if tuple(enemy.location) in blast:
+                enemy.stun(item.stunturns)
+    return remaining,explosions
+
+
+def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5, destroyedwalls = None, scoregoal = 5, torches = None, exitdoor = None, revealed = False, curse = None, flares = None):
+    entitydict = updatedict(play,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,torches,exitdoor,flares)
     if space is not None:
         if revealed or explored is None:
             entitydict = mapdict(entitydict,space,destroyedwalls)
         else:
-            visible = lightcoordinates(play,space,vision,bullets,bombs,torches,explosions)
+            visible = lightcoordinates(play,space,vision,bullets,bombs,torches,explosions,flares)
             explored.update(visible)
             entitydict = fogdict(entitydict,space,visible,explored,destroyedwalls)
-    sidebar = hudlines(play,level,enemyboss,0 if bombs is None else len(bombs),scoregoal,curse)
+    sidebar = hudlines(play,level,enemyboss,0 if bombs is None else len(bombs),scoregoal,curse,0 if flares is None else len(flares))
     printgameframe(entitydict,sidebar,play.status == 'dead')
 
 
@@ -260,9 +281,9 @@ def cursedsettings (settings, curse):
     stage['torches'] = max(0,stage['torches'] + modifiers.get('torches',0))
     stage['health'] = modifiers.get('health',2)
     stage['bombs'] = modifiers.get('bombs',1)
+    stage['flares'] = modifiers.get('flares',1)
     stage['torchradius'] = modifiers.get('torchradius',4)
     stage['dashcooldown'] = modifiers.get('dashcooldown',3)
-    stage['wardcooldown'] = modifiers.get('wardcooldown',4)
     stage['bombradius'] = modifiers.get('bombradius',2)
     stage['bombfuse'] = modifiers.get('bombfuse',3)
     stage['bulletrange'] = modifiers.get('bulletrange')
@@ -275,8 +296,8 @@ def runstage (settings, curse = None):
     play = player(settings['health'])
     play.ammo = settings['ammo']
     play.bombs = settings['bombs']
+    play.flares = settings['flares']
     play.dashcooldownbase = settings['dashcooldown']
-    play.wardcooldownbase = settings['wardcooldown']
     play.bombradius = settings['bombradius']
     play.bombfuse = settings['bombfuse']
     play.bulletrange = settings['bulletrange']
@@ -284,21 +305,23 @@ def runstage (settings, curse = None):
     space = generatespace(play.location)
     explored = set()
     destroyedwalls = set()
-    targets,necromancers,bullets,bombs,ammopickup,torches = createstageentities(settings,play,space)
-    printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,space = space,explored = explored,vision = settings['vision'],destroyedwalls = destroyedwalls,scoregoal = settings['score'],torches = torches,curse = curse)
+    targets,necromancers,bullets,bombs,flares,ammopickup,torches = createstageentities(settings,play,space)
+    printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,space = space,explored = explored,vision = settings['vision'],destroyedwalls = destroyedwalls,scoregoal = settings['score'],torches = torches,curse = curse,flares = flares)
 
     while play.health > 0 and play.score < settings['score']:
-        user = promptinput('[W/A/S/D/E/B/Q/R]: ')
+        user = promptinput('[W/A/S/D/E/B/F/Q]: ')
         tickplayerabilities(play)
         play.notice = ''
-        playeraction(play,user,bullets,bombs,space)
+        playeraction(play,user,bullets,bombs,space,flares)
         ammopickup = collectammo(play,ammopickup)
         bullets = updatebullets(play,bullets,targets,necromancers,space)
-        bombs,explosions = updatebombs(play,bombs,targets,necromancers,space,destroyedwalls = destroyedwalls)
+        bombs,bombexplosions = updatebombs(play,bombs,targets,necromancers,space,destroyedwalls = destroyedwalls)
+        flares,flareexplosions = updateflares(flares,necromancers,space)
+        explosions = bombexplosions.union(flareexplosions)
         if play.score < settings['score']:
             attackplayer(play,necromancers,space)
-            ammopickup = refillstageentities(settings,play,targets,necromancers,bullets,bombs,ammopickup,space,torches)
-        printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions,space,explored,settings['vision'],destroyedwalls,settings['score'],torches,curse = curse)
+            ammopickup = refillstageentities(settings,play,targets,necromancers,bullets,bombs,ammopickup,space,torches,flares)
+        printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions,space,explored,settings['vision'],destroyedwalls,settings['score'],torches,curse = curse,flares = flares)
     if play.health <= 0:
         return play
     return exitstage(play,settings,space,torches,curse)
@@ -313,13 +336,12 @@ def resetplayer (play):
     play.score = 0
     if play.bombs < 1:
         play.bombs = 1
+    if play.flares < 1:
+        play.flares = 1
     play.status = 'alive'
     play.notice = ''
     play.dashcooldown = 0
-    play.wardactive = False
-    play.wardcooldown = 0
     play.dashcooldownbase = 3
-    play.wardcooldownbase = 4
     play.bombradius = 2
     play.bombfuse = 3
     play.bulletrange = None
@@ -334,7 +356,7 @@ def bossminionlimit (enemyboss):
     return 1
 
 
-def summonbossminion (play, enemyboss, targets, necromancers, bullets, bombs, ammopickup, space):
+def summonbossminion (play, enemyboss, targets, necromancers, bullets, bombs, ammopickup, space, flares):
     if enemyboss.attackcounter != 0 or len(necromancers) >= bossminionlimit(enemyboss):
         return
     spawnspace = {
@@ -343,7 +365,7 @@ def summonbossminion (play, enemyboss, targets, necromancers, bullets, bombs, am
     }
     if len(spawnspace) == 0:
         return
-    location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,bosshitbox(enemyboss),spawnspace)
+    location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,bosshitbox(enemyboss),spawnspace,flares = flares)
     necromancers.append(necromancer(location))
     play.notice = '~The boss summoned a necromancer.~'
 
@@ -355,34 +377,37 @@ def runboss (play):
     necromancers = []
     bullets = []
     bombs = []
+    flares = []
     space = generatespace(play.location,bosshitbox(enemyboss),arena = (2,2,37,15))
     destroyedwalls = set()
     enemyboss.newattack(space)
-    location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss),space)
+    location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss),space,flares = flares)
     ammopickup = ammo(location)
-    printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space,destroyedwalls = destroyedwalls)
+    printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space,destroyedwalls = destroyedwalls,flares = flares)
 
     while play.health > 0 and enemyboss.health > 0:
-        user = promptinput('[W/A/S/D/E/B/Q/R]: ')
+        user = promptinput('[W/A/S/D/E/B/F/Q]: ')
         tickplayerabilities(play)
         play.notice = ''
-        playeraction(play,user,bullets,bombs,space)
+        playeraction(play,user,bullets,bombs,space,flares)
         ammopickup = collectammo(play,ammopickup)
         if ammopickup is None:
-            location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss),space)
+            location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss),space,flares = flares)
             ammopickup = ammo(location)
         bullets = updatebullets(play,bullets,targets,necromancers,space,enemyboss)
-        bombs,explosions = updatebombs(play,bombs,targets,necromancers,space,enemyboss,destroyedwalls)
+        bombs,bombexplosions = updatebombs(play,bombs,targets,necromancers,space,enemyboss,destroyedwalls)
+        flares,flareexplosions = updateflares(flares,necromancers,space)
+        explosions = bombexplosions.union(flareexplosions)
         if enemyboss.health > 0:
             attackplayer(play,[enemyboss],space)
         if play.health > 0 and enemyboss.health > 0:
             attackplayer(play,necromancers,space)
-            summonbossminion(play,enemyboss,targets,necromancers,bullets,bombs,ammopickup,space)
-        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,space,destroyedwalls = destroyedwalls)
+            summonbossminion(play,enemyboss,targets,necromancers,bullets,bombs,ammopickup,space,flares)
+        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,space,destroyedwalls = destroyedwalls,flares = flares)
 
     if enemyboss.health <= 0 and play.health > 0:
         enemyboss.destroyed()
-        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space,destroyedwalls = destroyedwalls)
+        printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space,destroyedwalls = destroyedwalls,flares = flares)
         print ('          ~You have won the game~         ')
         return True
     return False

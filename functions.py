@@ -1,8 +1,4 @@
 import random
-import os
-import re
-import select
-import subprocess
 import sys
 import time
 from collections import deque
@@ -20,8 +16,10 @@ BOARDHEIGHT = 19
 SIDEBARWIDTH = 30
 BOSS_ATTACK_WINDUP = 4
 DASH_COOLDOWN = 3
-WARD_COOLDOWN = 4
 EXPLOSION_LIGHT_RADIUS = 1
+FLARE_FUSE = 2
+FLARE_RADIUS = 1
+FLARE_STUN_TURNS = 2
 
 ASCIIICONS = {
     'player_up': '^',
@@ -32,11 +30,13 @@ ASCIIICONS = {
     'player_dead': 'F',
     'bullet': '&',
     'bomb': 'B',
+    'flare': 'f',
     'torch': 'T',
     'door': 'D',
     'ammo': 'a',
     'target': 't',
     'necromancer': 'N',
+    'necromancer_stunned': 'Z',
     'attack_charge': '+',
     'attack_warning': '!',
     'attack_imminent': '#',
@@ -48,12 +48,13 @@ ASCIIICONS = {
     'health': '',
     'hud_ammo': '',
     'hud_bombs': '',
+    'hud_flares': '',
     'score': '',
     'dash': '',
-    'ward': '',
     'shop_health': 'O',
     'shop_ammo': '&',
-    'shop_bombs': 'B'
+    'shop_bombs': 'B',
+    'shop_flares': 'f'
 }
 
 NERDICONS = {
@@ -65,11 +66,13 @@ NERDICONS = {
     'player_dead': '\uf119',
     'bullet': '\uf111',
     'bomb': '\uf1e2',
+    'flare': '\uf06d',
     'torch': '\uf0eb',
     'door': '\uf08b',
     'ammo': '\uf135',
     'target': '\uf05b',
     'necromancer': '\uf188',
+    'necromancer_stunned': '\uf0e7',
     'attack_charge': '\uf0e7',
     'attack_warning': '\uf071',
     'attack_imminent': '\uf06d',
@@ -81,93 +84,14 @@ NERDICONS = {
     'health': '\uf004',
     'hud_ammo': '\uf135',
     'hud_bombs': '\uf1e2',
+    'hud_flares': '\uf06d',
     'score': '\uf005',
     'dash': '\uf0e7',
-    'ward': '\uf132',
     'shop_health': '\uf004',
     'shop_ammo': '\uf135',
-    'shop_bombs': '\uf1e2'
+    'shop_bombs': '\uf1e2',
+    'shop_flares': '\uf06d'
 }
-
-
-def isnerdfont (fontname):
-    if fontname is None:
-        return False
-    return bool(re.search(r'\bnerd\b|\b(?:nf|nfm|nfp)\b',fontname,flags = re.IGNORECASE))
-
-
-def ghosttyfont ():
-    try:
-        result = subprocess.run(
-            ['ghostty','+show-config'],
-            capture_output = True,
-            check = False,
-            text = True,
-            timeout = 0.25
-        )
-    except (OSError,subprocess.TimeoutExpired):
-        return None
-    for line in result.stdout.splitlines():
-        match = re.match(r'^font-family\s*=\s*(.+)$',line)
-        if match is not None:
-            return match.group(1).strip()
-    return None
-
-
-def terminalfont ():
-    if termios is None or not sys.stdin.isatty() or not sys.stdout.isatty():
-        return None
-    try:
-        filedescriptor = sys.stdin.fileno()
-        oldsettings = termios.tcgetattr(filedescriptor)
-    except (OSError,termios.error):
-        return None
-
-    newsettings = termios.tcgetattr(filedescriptor)
-    newsettings[3] &= ~(termios.ICANON | termios.ECHO)
-    newsettings[6][termios.VMIN] = 0
-    newsettings[6][termios.VTIME] = 1
-    response = b''
-    try:
-        termios.tcsetattr(filedescriptor,termios.TCSADRAIN,newsettings)
-        sys.stdout.write('\033]50;?\a')
-        sys.stdout.flush()
-        ready,_,_ = select.select([filedescriptor],[],[],0.1)
-        if ready:
-            response = os.read(filedescriptor,1024)
-    except OSError:
-        return None
-    finally:
-        try:
-            termios.tcsetattr(filedescriptor,termios.TCSADRAIN,oldsettings)
-        except OSError:
-            pass
-
-    match = re.search(rb'\033\]50;([^\033\a]*)(?:\a|\033\\)',response)
-    if match is None:
-        return None
-    return match.group(1).decode(errors = 'replace')
-
-
-def detectnerdfont (environ = None, ghosttyfontprobe = None, terminalfontprobe = None):
-    environ = os.environ if environ is None else environ
-    theme = environ.get('ROGUELIKE_ICON_THEME','auto').lower()
-    if theme == 'nerd':
-        return True
-    if theme == 'ascii':
-        return False
-    if theme != 'auto':
-        return False
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
-        return False
-
-    ghosttyfontprobe = ghosttyfont if ghosttyfontprobe is None else ghosttyfontprobe
-    terminalfontprobe = terminalfont if terminalfontprobe is None else terminalfontprobe
-    if environ.get('TERM') == 'xterm-ghostty':
-        return isnerdfont(ghosttyfontprobe())
-    if environ.get('TERM','').startswith('xterm'):
-        return isnerdfont(terminalfontprobe())
-    return False
 
 
 ICONTHEME = 'ascii'
@@ -185,9 +109,8 @@ def iconlabel (name, text):
     return f'{glyph} {text}'
 
 
-def configureicontheme (enabled = None):
+def configureicontheme (enabled = False):
     global ICONTHEME,ICONS,COLOURS
-    enabled = detectnerdfont() if enabled is None else enabled
     ICONTHEME = 'nerd' if enabled else 'ascii'
     ICONS = dict(NERDICONS if enabled else ASCIIICONS)
     COLOURS = {
@@ -200,6 +123,7 @@ def configureicontheme (enabled = None):
         icon('ammo'): YELLOW,
         icon('bullet'): YELLOW,
         icon('bomb'): MAGENTA,
+        icon('flare'): YELLOW,
         icon('door'): MAGENTA,
         icon('torch'): YELLOW,
         icon('attack_charge'): YELLOW,
@@ -208,6 +132,7 @@ def configureicontheme (enabled = None):
         icon('destroyed_wall'): YELLOW,
         icon('explosion'): YELLOW,
         icon('necromancer'): MAGENTA,
+        icon('necromancer_stunned'): YELLOW,
         '#': BLUE,
         '?': GREY,
         '.': GREY
@@ -225,7 +150,7 @@ CURSES = [
     {'id': 'blackout', 'name': 'BLACKOUT', 'description': 'NO TORCHES OR NATURAL LIGHT', 'modifiers': {'vision': -99, 'torches': -99}},
     {'id': 'guttering_torches', 'name': 'GUTTERING TORCHES', 'description': 'TORCHES BARELY REACH', 'modifiers': {'torchradius': 1}},
     {'id': 'slow_dash', 'name': 'SLOW DASH', 'description': 'DASH RECHARGES SLOWLY', 'modifiers': {'dashcooldown': 6}},
-    {'id': 'brittle_ward', 'name': 'BRITTLE WARD', 'description': 'WARD RECHARGES SLOWLY', 'modifiers': {'wardcooldown': 7}},
+    {'id': 'spent_flares', 'name': 'SPENT FLARES', 'description': 'START WITHOUT FLARES', 'modifiers': {'flares': 0}},
     {'id': 'small_blast', 'name': 'SMALL BLAST', 'description': 'BOMBS HAVE LESS RANGE', 'modifiers': {'bombradius': 1}},
     {'id': 'short_fuse', 'name': 'SHORT FUSE', 'description': 'BOMBS DETONATE QUICKLY', 'modifiers': {'bombfuse': 1}},
     {'id': 'rusted_barrel', 'name': 'RUSTED BARREL', 'description': 'BULLETS FADE EARLY', 'modifiers': {'bulletrange': 3}},
@@ -279,13 +204,11 @@ class player:
         self.ammo = 1
         self.score = 0
         self.bombs = 0
+        self.flares = 1
         self.status = 'alive'
         self.notice = ''
         self.dashcooldown = 0
-        self.wardactive = False
-        self.wardcooldown = 0
         self.dashcooldownbase = DASH_COOLDOWN
-        self.wardcooldownbase = WARD_COOLDOWN
         self.bombfuse = 3
         self.bombradius = 2
         self.bulletrange = None
@@ -326,9 +249,6 @@ class player:
         self.ammo += max(0,amount - penalty)
 
     def attacked (self):
-        if self.wardactive:
-            self.wardactive = False
-            return False
         self.health -= 1
         if self.health <= 0:
             self.health = 0
@@ -388,6 +308,21 @@ class bomb:
         return self.fuse <= 0
 
 
+class flare:
+
+    def __init__ (self, location, fuse = FLARE_FUSE, radius = FLARE_RADIUS, stunturns = FLARE_STUN_TURNS):
+        self.location = list(location)
+        self.model = icon('flare')
+        self.fuse = fuse
+        self.radius = radius
+        self.stunturns = stunturns
+        self.lightradius = 3
+
+    def tick (self):
+        self.fuse -= 1
+        return self.fuse <= 0
+
+
 class torch:
 
     def __init__ (self, location, lightradius = 4):
@@ -427,7 +362,9 @@ class necromancer:
 
     def __init__ (self, location = None, model = None, health = 1):
         self.location = randomlocation() if location is None else list(location)
-        self.model = icon('necromancer') if model is None else model
+        self.normalmodel = icon('necromancer') if model is None else model
+        self.model = self.normalmodel
+        self.stunnedmodel = icon('necromancer_stunned')
         self.attackloadmodel = icon('attack_charge')
         self.attacksquaremodel1 = icon('attack_warning')
         self.attacksquaremodel2 = icon('attack_imminent')
@@ -435,6 +372,7 @@ class necromancer:
         self.attackcounter = 0
         self.attacklocation = None
         self.attackradius = 1
+        self.stunnedturns = 0
 
     def prepareattack (self, playerlocation):
         self.attacklocation = list(playerlocation)
@@ -445,6 +383,20 @@ class necromancer:
 
     def damaged (self, amount = 1):
         self.health -= amount
+
+    def stun (self, turns):
+        self.stunnedturns = max(self.stunnedturns,turns)
+        self.attackcounter = 0
+        self.attacklocation = None
+        self.model = self.stunnedmodel
+
+    def updatestun (self):
+        if self.stunnedturns <= 0:
+            return False
+        self.stunnedturns -= 1
+        if self.stunnedturns == 0:
+            self.model = self.normalmodel
+        return True
 
     def destroyed (self):
         self.model = ' '
@@ -699,23 +651,9 @@ def dashplayer (player, space = None):
     player.notice = '~You dashed forward.~'
 
 
-def activateward (player):
-    if player.wardactive:
-        player.notice = '~Your ward is already active.~'
-        return
-    if player.wardcooldown > 0:
-        player.notice = '~Ward is recharging.~'
-        return
-    player.wardactive = True
-    player.wardcooldown = player.wardcooldownbase
-    player.notice = '~A ward will absorb the next hit.~'
-
-
 def tickplayerabilities (player):
     if player.dashcooldown > 0:
         player.dashcooldown -= 1
-    if player.wardcooldown > 0:
-        player.wardcooldown -= 1
 
 
 def attackcoordinates (enemy):
@@ -767,6 +705,8 @@ def attackcoordinates (enemy):
 def attackplayer (player, enemies, space = None):
     for enemy in enemies:
         if isinstance(enemy, necromancer):
+            if enemy.updatestun():
+                continue
             if enemy.attackcounter == 0:
                 blocked = set()
                 for other in enemies:
@@ -788,8 +728,6 @@ def attackplayer (player, enemies, space = None):
                         if player.health > 0:
                             player.model = icon('player_hit')
                         player.notice = '~Necromancer spell struck you.~'
-                    else:
-                        player.notice = '~Your ward absorbed the spell.~'
             else:
                 enemy.attackcounter = 0
                 enemy.attacklocation = None
@@ -801,8 +739,6 @@ def attackplayer (player, enemies, space = None):
                         if player.health > 0:
                             player.model = icon('player_hit')
                         player.notice = '~Boss attack struck you.~'
-                    else:
-                        player.notice = '~Your ward absorbed the attack.~'
 
 
 def bombcoordinates (item, space = None):
@@ -869,12 +805,13 @@ def addentity (entitydict, location, model):
             entitydict[coordinate] = char
 
 
-def updatedict (player, targets = None, necromancers = None, bullets = None, bombs = None, ammo = None, enemyboss = None, explosions = None, torches = None, exitdoor = None):
+def updatedict (player, targets = None, necromancers = None, bullets = None, bombs = None, ammo = None, enemyboss = None, explosions = None, torches = None, exitdoor = None, flares = None):
     entitydict = {}
     targets = [] if targets is None else targets
     necromancers = [] if necromancers is None else necromancers
     bullets = [] if bullets is None else bullets
     bombs = [] if bombs is None else bombs
+    flares = [] if flares is None else flares
     explosions = set() if explosions is None else explosions
     torches = [] if torches is None else torches
 
@@ -897,6 +834,8 @@ def updatedict (player, targets = None, necromancers = None, bullets = None, bom
         if enemy.model != ' ':
             addentity(entitydict,enemy.location,enemy.model)
     for item in bombs:
+        addentity(entitydict,item.location,item.model)
+    for item in flares:
         addentity(entitydict,item.location,item.model)
     if enemyboss is not None:
         addentity(entitydict,enemyboss.location,enemyboss.model)
@@ -925,11 +864,12 @@ def visiblecoordinates (origin, space, radius = 5):
     return visible
 
 
-def lightcoordinates (player, space, vision = 5, bullets = None, bombs = None, torches = None, explosions = None):
+def lightcoordinates (player, space, vision = 5, bullets = None, bombs = None, torches = None, explosions = None, flares = None):
     visible = visiblecoordinates(player,space,vision)
     sources = []
     sources.extend([] if bullets is None else bullets)
     sources.extend([] if bombs is None else bombs)
+    sources.extend([] if flares is None else flares)
     sources.extend([] if torches is None else torches)
     for source in sources:
         visible.update(visiblecoordinates(source,space,source.lightradius))
@@ -1083,7 +1023,7 @@ def statbar (value, maximum):
     return f"[{'X' * filled}{'-' * (maximum - filled)}]"
 
 
-def hudlines (player, level = None, enemyboss = None, armedbombs = 0, scoregoal = 5, curse = None):
+def hudlines (player, level = None, enemyboss = None, armedbombs = 0, scoregoal = 5, curse = None, armedflares = 0):
     lines = []
     if level is not None:
         lines.append(iconlabel('threatcon',f'THREATCON: {statbar(level + 1,3)}'))
@@ -1096,11 +1036,10 @@ def hudlines (player, level = None, enemyboss = None, armedbombs = 0, scoregoal 
     lines.append(iconlabel('health',f'HEALTH: {statbar(player.health,5)}'))
     lines.append(iconlabel('hud_ammo',f'AMMO: {statbar(player.ammo,5)}'))
     lines.append(iconlabel('hud_bombs',f'BOMBS: {statbar(player.bombs,5)}  ARMED: {statbar(armedbombs,3)}'))
+    lines.append(iconlabel('hud_flares',f'FLARES: {statbar(player.flares,5)}  LIT: {statbar(armedflares,3)}'))
     lines.append(iconlabel('score',f'SCORE: {statbar(player.score,scoregoal)}'))
     dashstatus = 'READY' if player.dashcooldown == 0 else 'RECHARGING'
-    wardstatus = 'ACTIVE' if player.wardactive else 'READY' if player.wardcooldown == 0 else 'RECHARGING'
     lines.append(iconlabel('dash',f'Q DASH: {dashstatus}'))
-    lines.append(iconlabel('ward',f'R WARD: {wardstatus}'))
     lines.append(f'PLAYER: {player.status}')
     return lines
 
@@ -1132,7 +1071,7 @@ def threatconlvl (threatcon_lvl):
 class shop:
     def __init__ (self):
         self.pointer = 0
-        self.items = ['HEALTH','AMMO','BOMBS']
+        self.items = ['HEALTH','AMMO','BOMBS','FLARES']
 
     def move (self, direction):
         if direction == 'w':
@@ -1149,7 +1088,9 @@ class shop:
             return player.health
         if item == 'AMMO':
             return player.ammo
-        return player.bombs
+        if item == 'BOMBS':
+            return player.bombs
+        return player.flares
 
     def changeitem (self, player, item, amount):
         if item == 'HEALTH':
@@ -1158,6 +1099,8 @@ class shop:
             player.ammo += amount
         elif item == 'BOMBS':
             player.bombs += amount
+        else:
+            player.flares += amount
 
     def buy (self, player, points):
         item = self.items[self.pointer]
@@ -1174,10 +1117,10 @@ class shop:
 
     def sell (self, player, points):
         item = self.items[self.pointer]
-        minimum = 0 if item == 'BOMBS' else 1
+        minimum = 0 if item in ['BOMBS','FLARES'] else 1
         if self.itemvalue(player,item) <= minimum:
-            if item == 'BOMBS':
-                print ('No bombs left to sell!')
+            if item in ['BOMBS','FLARES']:
+                print (f'No {item.lower()} left to sell!')
             else:
                 print (f'Base {item.lower()} {minimum}, cannot be sold!')
             time.sleep(0.75)
@@ -1191,8 +1134,14 @@ class shop:
             pointer = ' --> ' if self.pointer == index else '     '
             value = self.itemvalue(player,item)
             markers = ''
+            marker = {
+                'HEALTH': icon('shop_health'),
+                'AMMO': icon('shop_ammo'),
+                'BOMBS': icon('shop_bombs'),
+                'FLARES': icon('shop_flares')
+            }[item]
             for number in range(value):
-                markers += f'{icon("shop_health")} ' if item == 'HEALTH' else f'{icon("shop_ammo")} ' if item == 'AMMO' else f'{icon("shop_bombs")} '
+                markers += f'{marker} '
             lines.append(f'     {pointer} {item:<6} |{markers:<10}|')
             lines.append('')
         lines.append(f'           POINTS LEFT: {points}')
