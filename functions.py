@@ -830,6 +830,7 @@ def printgameframe (entitydict, sidebar, gameover = False):
     topborder = colourtext('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',CYAN)
     print(topborder)
     for index,line in enumerate(lines):
+        line = line[:BOARDWIDTH].ljust(BOARDWIDTH)
         side = sidebar[index] if index < len(sidebar) else ''
         print(f'{border}{colourboardline(line)}{border}  {colourtext(side.center(SIDEBARWIDTH),WHITE)}')
     print(topborder)
