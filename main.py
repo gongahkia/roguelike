@@ -135,11 +135,8 @@ def updatebullets (play, bullets, targets, necromancers, space, enemyboss = None
     for item in bullets:
         if not item.active:
             item.active = True
-            if tuple(item.location) not in space:
-                continue
-            remaining.append(item)
-            continue
-        item.movement()
+        else:
+            item.movement()
         if tuple(item.location) not in space:
             continue
 
