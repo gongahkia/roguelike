@@ -687,28 +687,33 @@ def printdict (entitydict):
 
 #HUD
 
-def hudlines (player, level = None, enemyboss = None, armedbombs = 0):
+def statbar (value, maximum):
+    filled = min(max(value,0),maximum)
+    return f"[{'X' * filled}{'-' * (maximum - filled)}]"
+
+
+def hudlines (player, level = None, enemyboss = None, armedbombs = 0, scoregoal = 5):
     lines = []
     if level is not None:
-        lines.append(f'      THREATCON: {level}')
+        lines.append(f'      THREATCON: {statbar(level + 1,3)}')
     if enemyboss is not None:
-        lines.append(f'      BOSS HEALTH: {enemyboss.health}')
+        lines.append(f'      BOSS HEALTH: {statbar(enemyboss.health,10)}')
         if enemyboss.attackcounter == 1:
             lines.append(f'      BOSS WINDUP: {enemyboss.attackname}')
         lines.append(f'    {enemyboss.lines}')
         lines.append('    -----------------------------------')
-    lines.append(f'      HEALTH: {player.health}')
-    lines.append(f'      AMMO: {player.ammo}')
-    lines.append(f'      BOMBS: {player.bombs}  ARMED: {armedbombs}')
-    lines.append(f'      SCORE: {player.score}')
+    lines.append(f'      HEALTH: {statbar(player.health,5)}')
+    lines.append(f'      AMMO: {statbar(player.ammo,5)}')
+    lines.append(f'      BOMBS: {statbar(player.bombs,5)}  ARMED: {statbar(armedbombs,3)}')
+    lines.append(f'      SCORE: {statbar(player.score,scoregoal)}')
     lines.append(f'      PLAYER: {player.status}')
     if player.notice != '':
         lines.append(f'    {player.notice}')
     return lines
 
 
-def interface (player, level = None, enemyboss = None, armedbombs = 0):
-    for line in hudlines(player,level,enemyboss,armedbombs):
+def interface (player, level = None, enemyboss = None, armedbombs = 0, scoregoal = 5):
+    for line in hudlines(player,level,enemyboss,armedbombs,scoregoal):
         for part in line.splitlines():
             print(colourtext(part.center(BOARDWIDTH),WHITE))
 
@@ -722,7 +727,7 @@ def threatconlvl (threatcon_lvl):
     for row in range(8):
         lines.append('')
     lines.append('                ~NOTICE~')
-    lines.append(f'   YOU ARE MOVING TO THREATCON LEVEL {threatcon_lvl}')
+    lines.append(f'      YOU ARE MOVING TO THREATCON {statbar(threatcon_lvl + 1,3)}')
     for row in range(8):
         lines.append('')
     printscreen(lines)

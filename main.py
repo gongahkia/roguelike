@@ -197,7 +197,7 @@ def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None, de
     return remaining,explosions
 
 
-def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5, destroyedwalls = None):
+def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5, destroyedwalls = None, scoregoal = 5):
     entitydict = updatedict(play,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions)
     if space is not None:
         if explored is None:
@@ -207,7 +207,7 @@ def printgame (play, level = None, targets = None, necromancers = None, bullets 
             explored.update(visible)
             entitydict = fogdict(entitydict,space,visible,explored,destroyedwalls)
     printdict(entitydict)
-    interface(play,level,enemyboss,0 if bombs is None else len(bombs))
+    interface(play,level,enemyboss,0 if bombs is None else len(bombs),scoregoal)
 
 
 #THREATCON LEVELS
@@ -220,7 +220,7 @@ def runstage (settings):
     explored = set()
     destroyedwalls = set()
     targets,necromancers,bullets,bombs,ammopickup = createstageentities(settings,play,space)
-    printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,space = space,explored = explored,vision = settings['vision'],destroyedwalls = destroyedwalls)
+    printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,space = space,explored = explored,vision = settings['vision'],destroyedwalls = destroyedwalls,scoregoal = settings['score'])
 
     while play.health > 0 and play.score < settings['score']:
         user = promptinput('[W/A/S/D/E/B]: ')
@@ -231,7 +231,7 @@ def runstage (settings):
         bombs,explosions = updatebombs(play,bombs,targets,necromancers,space,destroyedwalls = destroyedwalls)
         attackplayer(play,necromancers,space)
         ammopickup = refillstageentities(settings,play,targets,necromancers,bullets,bombs,ammopickup,space)
-        printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions,space,explored,settings['vision'],destroyedwalls)
+        printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions,space,explored,settings['vision'],destroyedwalls,settings['score'])
     return play
 
 
