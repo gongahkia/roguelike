@@ -18,6 +18,48 @@ BOSS_ATTACK_WINDUP = 4
 DASH_COOLDOWN = 3
 WARD_COOLDOWN = 4
 EXPLOSION_LIGHT_RADIUS = 1
+
+CURSES = [
+    {'id': 'frail_body', 'name': 'FRAIL BODY', 'description': 'BEGIN WITH ONE HEALTH', 'modifiers': {'health': 1}},
+    {'id': 'darkness', 'name': 'DARKNESS', 'description': 'REDUCED NATURAL VISION', 'modifiers': {'vision': -3}},
+    {'id': 'hunted', 'name': 'HUNTED', 'description': 'ONE EXTRA NECROMANCER', 'modifiers': {'necromancers': 1}},
+    {'id': 'relentless', 'name': 'RELENTLESS', 'description': 'TWO EXTRA NECROMANCERS', 'modifiers': {'necromancers': 2}},
+    {'id': 'empty_chamber', 'name': 'EMPTY CHAMBER', 'description': 'START WITH LESS AMMO', 'modifiers': {'ammo': -1}},
+    {'id': 'spent_bombs', 'name': 'SPENT BOMBS', 'description': 'START WITHOUT BOMBS', 'modifiers': {'bombs': 0}},
+    {'id': 'long_hunt', 'name': 'LONG HUNT', 'description': 'MORE TARGETS MUST FALL', 'modifiers': {'score': 2}},
+    {'id': 'blackout', 'name': 'BLACKOUT', 'description': 'NO TORCHES OR NATURAL LIGHT', 'modifiers': {'vision': -99, 'torches': -99}},
+    {'id': 'guttering_torches', 'name': 'GUTTERING TORCHES', 'description': 'TORCHES BARELY REACH', 'modifiers': {'torchradius': 1}},
+    {'id': 'slow_dash', 'name': 'SLOW DASH', 'description': 'DASH RECHARGES SLOWLY', 'modifiers': {'dashcooldown': 6}},
+    {'id': 'brittle_ward', 'name': 'BRITTLE WARD', 'description': 'WARD RECHARGES SLOWLY', 'modifiers': {'wardcooldown': 7}},
+    {'id': 'small_blast', 'name': 'SMALL BLAST', 'description': 'BOMBS HAVE LESS RANGE', 'modifiers': {'bombradius': 1}},
+    {'id': 'short_fuse', 'name': 'SHORT FUSE', 'description': 'BOMBS DETONATE QUICKLY', 'modifiers': {'bombfuse': 1}},
+    {'id': 'rusted_barrel', 'name': 'RUSTED BARREL', 'description': 'BULLETS FADE EARLY', 'modifiers': {'bulletrange': 3}},
+    {'id': 'dry_reload', 'name': 'DRY RELOAD', 'description': 'KILLS RESTORE LESS AMMO', 'modifiers': {'reloadpenalty': 1}}
+]
+CURSEBYID = {item['id']: item for item in CURSES}
+
+
+def cursemodifiers (curse):
+    if curse is None:
+        return {}
+    return dict(CURSEBYID[curse]['modifiers'])
+
+
+class cursebag:
+    def __init__ (self):
+        self.remaining = []
+        self.refill()
+
+    def refill (self):
+        self.remaining = list(CURSES)
+        random.shuffle(self.remaining)
+
+    def draw (self, amount = 3):
+        if len(self.remaining) < amount:
+            self.refill()
+        items = self.remaining[:amount]
+        del self.remaining[:amount]
+        return items
 RESET = '\033[0m'
 CYAN = '\033[96m'
 BLUE = '\033[94m'
@@ -66,6 +108,12 @@ class player:
         self.dashcooldown = 0
         self.wardactive = False
         self.wardcooldown = 0
+        self.dashcooldownbase = DASH_COOLDOWN
+        self.wardcooldownbase = WARD_COOLDOWN
+        self.bombfuse = 3
+        self.bombradius = 2
+        self.bulletrange = None
+        self.reloadpenalty = 0
 
     def face (self, face:str):
         if face == 'w':
@@ -93,8 +141,9 @@ class player:
         self.ammo -= 1
         return True
 
-    def reload (self, amount = 1):
-        self.ammo += amount
+    def reload (self, amount = 1, cursed = True):
+        penalty = self.reloadpenalty if cursed else 0
+        self.ammo += max(0,amount - penalty)
 
     def attacked (self):
         if self.wardactive:
@@ -113,11 +162,13 @@ class player:
 
 class bullet:
 
-    def __init__ (self, playermodel, playerlocation):
+    def __init__ (self, playermodel, playerlocation, maxrange = None):
         self.model = '&'
         self.location = list(playerlocation)
         self.active = False
         self.lightradius = 2
+        self.maxrange = maxrange
+        self.travelled = 1
 
         if playermodel == '^':
             self.direction = 'up'
@@ -465,7 +516,7 @@ def dashplayer (player, space = None):
     if player.location == start:
         player.notice = '~A wall blocks your dash.~'
         return
-    player.dashcooldown = DASH_COOLDOWN
+    player.dashcooldown = player.dashcooldownbase
     player.notice = '~You dashed forward.~'
 
 
@@ -477,7 +528,7 @@ def activateward (player):
         player.notice = '~Ward is recharging.~'
         return
     player.wardactive = True
-    player.wardcooldown = WARD_COOLDOWN
+    player.wardcooldown = player.wardcooldownbase
     player.notice = '~A ward will absorb the next hit.~'
 
 
@@ -994,13 +1045,9 @@ def runshop (num, player):
 
 
 class curseshop:
-    def __init__ (self):
+    def __init__ (self, items):
         self.pointer = 0
-        self.items = [
-            ('frail_body','FRAIL BODY','BEGIN WITH ONE HEALTH'),
-            ('darkness','DARKNESS','REDUCED NATURAL VISION'),
-            ('hunted','HUNTED','ONE EXTRA NECROMANCER')
-        ]
+        self.items = items
 
     def move (self, direction):
         if direction == 'w':
@@ -1013,24 +1060,26 @@ class curseshop:
             self.pointer = len(self.items) - 1
 
     def selected (self):
-        return self.items[self.pointer][0]
+        return self.items[self.pointer]['id']
 
     def screenlines (self):
-        lines = ['','','              ~CURSE SHOP~','     CHOOSE A BURDEN TO DESCEND','','']
+        lines = ['~CURSE SHOP~','CHOOSE A BURDEN TO DESCEND','']
         for index,item in enumerate(self.items):
-            pointer = ' --> ' if self.pointer == index else '     '
-            lines.append(f'     {pointer} {item[1]}')
-            lines.append(f'             {item[2]}')
+            pointer = '-->' if self.pointer == index else '   '
+            lines.append(f'{pointer} {item["name"]}')
+            lines.append(item['description'])
             lines.append('')
-        lines.append('          [E] ACCEPTS YOUR CURSE')
-        return lines
+        lines.append('[E] ACCEPTS YOUR CURSE')
+        padding = (BOARDHEIGHT - len(lines)) // 2
+        return [''] * padding + [line.center(BOARDWIDTH) for line in lines] + [''] * padding
 
     def printscreen (self):
         printscreen(self.screenlines())
 
 
-def runcurseshop ():
-    s = curseshop()
+def runcurseshop (bag = None):
+    bag = cursebag() if bag is None else bag
+    s = curseshop(bag.draw())
     while True:
         s.printscreen()
         user = promptinput('[W/S/E]: ')

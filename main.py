@@ -1,5 +1,5 @@
 from titlescreen import titlescreen
-from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, torch, door, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, dashplayer, activateward, tickplayerabilities, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, lightcoordinates, fogdict, mapdict, printgameframe, hudlines, promptinput, threatconlvl, runcurseshop, runshop
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, torch, door, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, dashplayer, activateward, tickplayerabilities, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, lightcoordinates, fogdict, mapdict, printgameframe, hudlines, promptinput, threatconlvl, cursemodifiers, cursebag, runcurseshop, runshop
 
 
 #GAME SETTINGS
@@ -23,12 +23,12 @@ def startgame ():
             return False
 
 
-def continuestage (level):
+def continuestage (level, bag = None):
     while True:
         threatconlvl(level)
         acknowledgement = promptinput('[Y to continue/N to leave]: ')
         if acknowledgement == 'y':
-            return runcurseshop()
+            return runcurseshop(bag)
         if acknowledgement == 'n':
             print ('Thanks for playing!')
             return None
@@ -68,7 +68,7 @@ def createstageentities (settings, play, space):
 
     for number in range(settings['torches']):
         location = openlocation(play,targets,necromancers,bullets,bombs,space = space,torches = torches)
-        torches.append(torch(location))
+        torches.append(torch(location,settings.get('torchradius',4)))
     for number in range(settings['targets']):
         location = openlocation(play,targets,necromancers,bullets,bombs,space = targetspace(settings,play,space),torches = torches)
         targets.append(target(location))
@@ -95,7 +95,7 @@ def refillstageentities (settings, play, targets, necromancers, bullets, bombs, 
 
 def collectammo (play, ammopickup):
     if play.location == ammopickup.location:
-        play.reload()
+        play.reload(cursed = False)
         play.notice = '~Ammo collected.~'
         return None
     return ammopickup
@@ -111,14 +111,14 @@ def playeraction (play, user, bullets, bombs, space):
         activateward(play)
     if user == 'e':
         if play.shoot():
-            bullets.append(bullet(play.model,play.location))
+            bullets.append(bullet(play.model,play.location,play.bulletrange))
         else:
             play.notice = '~No more ammo, find more to shoot.~'
     if user == 'b':
         if play.bombs <= 0:
             play.notice = '~No bombs left. Buy bombs in the shop.~'
         else:
-            bombs.append(bomb(play.location))
+            bombs.append(bomb(play.location,play.bombfuse,play.bombradius))
             play.bombs -= 1
             play.notice = '~Bomb armed. Move away before it explodes.~'
 
@@ -143,7 +143,10 @@ def updatebullets (play, bullets, targets, necromancers, space, enemyboss = None
         if not item.active:
             item.active = True
         else:
+            if item.maxrange is not None and item.travelled >= item.maxrange:
+                continue
             item.movement()
+            item.travelled += 1
         if tuple(item.location) not in space:
             continue
 
@@ -249,18 +252,35 @@ def exitstage (play, settings, space, torches, curse):
 
 def cursedsettings (settings, curse):
     stage = dict(settings)
-    if curse == 'darkness':
-        stage['vision'] = max(1,stage['vision'] - 3)
-    if curse == 'hunted':
-        stage['necromancers'] += 1
+    modifiers = cursemodifiers(curse)
+    stage['vision'] = max(1,stage['vision'] + modifiers.get('vision',0))
+    stage['necromancers'] = max(0,stage['necromancers'] + modifiers.get('necromancers',0))
+    stage['ammo'] = max(0,stage['ammo'] + modifiers.get('ammo',0))
+    stage['score'] = max(1,stage['score'] + modifiers.get('score',0))
+    stage['torches'] = max(0,stage['torches'] + modifiers.get('torches',0))
+    stage['health'] = modifiers.get('health',2)
+    stage['bombs'] = modifiers.get('bombs',1)
+    stage['torchradius'] = modifiers.get('torchradius',4)
+    stage['dashcooldown'] = modifiers.get('dashcooldown',3)
+    stage['wardcooldown'] = modifiers.get('wardcooldown',4)
+    stage['bombradius'] = modifiers.get('bombradius',2)
+    stage['bombfuse'] = modifiers.get('bombfuse',3)
+    stage['bulletrange'] = modifiers.get('bulletrange')
+    stage['reloadpenalty'] = modifiers.get('reloadpenalty',0)
     return stage
 
 
 def runstage (settings, curse = None):
     settings = cursedsettings(settings,curse)
-    play = player(1 if curse == 'frail_body' else 2)
+    play = player(settings['health'])
     play.ammo = settings['ammo']
-    play.bombs = 1
+    play.bombs = settings['bombs']
+    play.dashcooldownbase = settings['dashcooldown']
+    play.wardcooldownbase = settings['wardcooldown']
+    play.bombradius = settings['bombradius']
+    play.bombfuse = settings['bombfuse']
+    play.bulletrange = settings['bulletrange']
+    play.reloadpenalty = settings['reloadpenalty']
     space = generatespace(play.location)
     explored = set()
     destroyedwalls = set()
@@ -297,6 +317,12 @@ def resetplayer (play):
     play.dashcooldown = 0
     play.wardactive = False
     play.wardcooldown = 0
+    play.dashcooldownbase = 3
+    play.wardcooldownbase = 4
+    play.bombradius = 2
+    play.bombfuse = 3
+    play.bulletrange = None
+    play.reloadpenalty = 0
 
 
 def bossminionlimit (enemyboss):
@@ -380,10 +406,11 @@ def rungame (debuglevel = None):
 
     totscore = 0
     play = None
+    bag = cursebag()
     for settings in STAGES:
         curse = None
         if settings['level'] > 0:
-            curse = continuestage(settings['level'])
+            curse = continuestage(settings['level'],bag)
             if curse is None:
                 return
         play = runstage(settings,curse)
