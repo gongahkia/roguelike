@@ -1,13 +1,13 @@
 from titlescreen import titlescreen
-from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, dashplayer, activateward, tickplayerabilities, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, mapdict, printgameframe, hudlines, promptinput, threatconlvl, runshop
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, torch, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, dashplayer, activateward, tickplayerabilities, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, lightcoordinates, fogdict, mapdict, printgameframe, hudlines, promptinput, threatconlvl, runshop
 
 
 #GAME SETTINGS
 
 STAGES = [
-    {'level': 0, 'targets': 1, 'necromancers': 0, 'score': 3, 'ammo': 1, 'vision': 6},
-    {'level': 1, 'targets': 3, 'necromancers': 0, 'score': 4, 'ammo': 1, 'vision': 5},
-    {'level': 2, 'targets': 1, 'necromancers': 2, 'score': 5, 'ammo': 2, 'vision': 4}
+    {'level': 0, 'targets': 1, 'necromancers': 0, 'score': 3, 'ammo': 1, 'vision': 6, 'torches': 2},
+    {'level': 1, 'targets': 3, 'necromancers': 0, 'score': 4, 'ammo': 1, 'vision': 5, 'torches': 3},
+    {'level': 2, 'targets': 1, 'necromancers': 2, 'score': 5, 'ammo': 2, 'vision': 4, 'torches': 3}
 ]
 
 
@@ -34,7 +34,7 @@ def continuestage (level):
             return False
 
 
-def occupiedcoordinates (play, targets, necromancers, bullets, bombs, ammopickup = None, blocked = None):
+def occupiedcoordinates (play, targets, necromancers, bullets, bombs, ammopickup = None, blocked = None, torches = None):
     occupied = {tuple(play.location)}
     for item in targets + necromancers + bullets + bombs:
         occupied.add(tuple(item.location))
@@ -42,11 +42,14 @@ def occupiedcoordinates (play, targets, necromancers, bullets, bombs, ammopickup
         occupied.add(tuple(ammopickup.location))
     if blocked is not None:
         occupied.update(blocked)
+    if torches is not None:
+        for item in torches:
+            occupied.add(tuple(item.location))
     return occupied
 
 
-def openlocation (play, targets, necromancers, bullets, bombs, ammopickup = None, blocked = None, space = None):
-    occupied = occupiedcoordinates(play,targets,necromancers,bullets,bombs,ammopickup,blocked)
+def openlocation (play, targets, necromancers, bullets, bombs, ammopickup = None, blocked = None, space = None, torches = None):
+    occupied = occupiedcoordinates(play,targets,necromancers,bullets,bombs,ammopickup,blocked,torches)
     return randomlocation(occupied,space)
 
 
@@ -61,27 +64,31 @@ def createstageentities (settings, play, space):
     necromancers = []
     bullets = []
     bombs = []
+    torches = []
 
+    for number in range(settings['torches']):
+        location = openlocation(play,targets,necromancers,bullets,bombs,space = space,torches = torches)
+        torches.append(torch(location))
     for number in range(settings['targets']):
-        location = openlocation(play,targets,necromancers,bullets,bombs,space = targetspace(settings,play,space))
+        location = openlocation(play,targets,necromancers,bullets,bombs,space = targetspace(settings,play,space),torches = torches)
         targets.append(target(location))
     for number in range(settings['necromancers']):
-        location = openlocation(play,targets,necromancers,bullets,bombs,space = space)
+        location = openlocation(play,targets,necromancers,bullets,bombs,space = space,torches = torches)
         necromancers.append(necromancer(location))
-    location = openlocation(play,targets,necromancers,bullets,bombs,space = space)
+    location = openlocation(play,targets,necromancers,bullets,bombs,space = space,torches = torches)
     ammopickup = ammo(location)
-    return targets,necromancers,bullets,bombs,ammopickup
+    return targets,necromancers,bullets,bombs,ammopickup,torches
 
 
-def refillstageentities (settings, play, targets, necromancers, bullets, bombs, ammopickup, space):
+def refillstageentities (settings, play, targets, necromancers, bullets, bombs, ammopickup, space, torches):
     while len(targets) < settings['targets']:
-        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,space = targetspace(settings,play,space))
+        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,space = targetspace(settings,play,space),torches = torches)
         targets.append(target(location))
     while len(necromancers) < settings['necromancers']:
-        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,space = space)
+        location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,space = space,torches = torches)
         necromancers.append(necromancer(location))
     if ammopickup is None:
-        location = openlocation(play,targets,necromancers,bullets,bombs,space = space)
+        location = openlocation(play,targets,necromancers,bullets,bombs,space = space,torches = torches)
         ammopickup = ammo(location)
     return ammopickup
 
@@ -200,13 +207,13 @@ def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None, de
     return remaining,explosions
 
 
-def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5, destroyedwalls = None, scoregoal = 5):
-    entitydict = updatedict(play,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions)
+def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5, destroyedwalls = None, scoregoal = 5, torches = None):
+    entitydict = updatedict(play,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,torches)
     if space is not None:
         if explored is None:
             entitydict = mapdict(entitydict,space,destroyedwalls)
         else:
-            visible = visiblecoordinates(play,space,vision)
+            visible = lightcoordinates(play,space,vision,bullets,bombs,torches,explosions)
             explored.update(visible)
             entitydict = fogdict(entitydict,space,visible,explored,destroyedwalls)
     sidebar = hudlines(play,level,enemyboss,0 if bombs is None else len(bombs),scoregoal)
@@ -222,8 +229,8 @@ def runstage (settings):
     space = generatespace(play.location)
     explored = set()
     destroyedwalls = set()
-    targets,necromancers,bullets,bombs,ammopickup = createstageentities(settings,play,space)
-    printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,space = space,explored = explored,vision = settings['vision'],destroyedwalls = destroyedwalls,scoregoal = settings['score'])
+    targets,necromancers,bullets,bombs,ammopickup,torches = createstageentities(settings,play,space)
+    printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,space = space,explored = explored,vision = settings['vision'],destroyedwalls = destroyedwalls,scoregoal = settings['score'],torches = torches)
 
     while play.health > 0 and play.score < settings['score']:
         user = promptinput('[W/A/S/D/E/B/Q/R]: ')
@@ -234,8 +241,8 @@ def runstage (settings):
         bullets = updatebullets(play,bullets,targets,necromancers,space)
         bombs,explosions = updatebombs(play,bombs,targets,necromancers,space,destroyedwalls = destroyedwalls)
         attackplayer(play,necromancers,space)
-        ammopickup = refillstageentities(settings,play,targets,necromancers,bullets,bombs,ammopickup,space)
-        printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions,space,explored,settings['vision'],destroyedwalls,settings['score'])
+        ammopickup = refillstageentities(settings,play,targets,necromancers,bullets,bombs,ammopickup,space,torches)
+        printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions,space,explored,settings['vision'],destroyedwalls,settings['score'],torches)
     return play
 
 
