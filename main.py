@@ -247,6 +247,28 @@ def resetplayer (play):
     play.notice = ''
 
 
+def bossminionlimit (enemyboss):
+    if enemyboss.health < 4:
+        return 3
+    if enemyboss.health < 8:
+        return 2
+    return 1
+
+
+def summonbossminion (play, enemyboss, targets, necromancers, bullets, bombs, ammopickup, space):
+    if enemyboss.attackcounter != 0 or len(necromancers) >= bossminionlimit(enemyboss):
+        return
+    spawnspace = {
+        coordinate for coordinate in space
+        if abs(coordinate[0] - play.location[0]) + abs(coordinate[1] - play.location[1]) >= 6
+    }
+    if len(spawnspace) == 0:
+        return
+    location = openlocation(play,targets,necromancers,bullets,bombs,ammopickup,bosshitbox(enemyboss),spawnspace)
+    necromancers.append(necromancer(location))
+    play.notice = '~The boss summoned a necromancer.~'
+
+
 def runboss (play):
     resetplayer(play)
     enemyboss = boss()
@@ -254,7 +276,7 @@ def runboss (play):
     necromancers = []
     bullets = []
     bombs = []
-    space = generatespace(play.location,bosshitbox(enemyboss))
+    space = generatespace(play.location,bosshitbox(enemyboss),arena = (2,2,37,15))
     destroyedwalls = set()
     enemyboss.newattack(space)
     location = openlocation(play,targets,necromancers,bullets,bombs,None,bosshitbox(enemyboss),space)
@@ -273,6 +295,9 @@ def runboss (play):
         bombs,explosions = updatebombs(play,bombs,targets,necromancers,space,enemyboss,destroyedwalls)
         if enemyboss.health > 0:
             attackplayer(play,[enemyboss],space)
+        if play.health > 0 and enemyboss.health > 0:
+            attackplayer(play,necromancers,space)
+            summonbossminion(play,enemyboss,targets,necromancers,bullets,bombs,ammopickup,space)
         printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,space,destroyedwalls = destroyedwalls)
 
     if enemyboss.health <= 0 and play.health > 0:

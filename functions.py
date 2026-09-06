@@ -13,6 +13,7 @@ except ImportError:
 
 BOARDWIDTH = 41
 BOARDHEIGHT = 19
+BOSS_ATTACK_WINDUP = 4
 RESET = '\033[0m'
 CYAN = '\033[96m'
 BLUE = '\033[94m'
@@ -244,7 +245,7 @@ class boss:
 
     def attack (self, space = None):
         self.attackcounter += 1
-        if self.attackcounter > 2:
+        if self.attackcounter > BOSS_ATTACK_WINDUP:
             self.attackcounter = 0
             self.newattack(space)
 
@@ -295,22 +296,25 @@ def carvecorridor (space, start, finish):
     space.add((finishx,finishy))
 
 
-def generatespace (start, required = None):
+def generatespace (start, required = None, roomcount = (3,5), roomwidth = (5,9), roomheight = (3,6), startroomsize = (11,7), arena = None):
     space = set()
     rooms = []
-    startroom = [start[0] - 5,start[1] - 3,11,7]
+    startroom = [start[0] - startroomsize[0] // 2,start[1] - startroomsize[1] // 2,startroomsize[0],startroomsize[1]]
     carveroom(space,startroom[0],startroom[1],startroom[2],startroom[3])
     rooms.append((start[0],start[1]))
 
-    for number in range(random.randint(3,5)):
-        width = random.randint(5,9)
-        height = random.randint(3,6)
+    for number in range(random.randint(roomcount[0],roomcount[1])):
+        width = random.randint(roomwidth[0],roomwidth[1])
+        height = random.randint(roomheight[0],roomheight[1])
         xcoord = random.randint(1,BOARDWIDTH - width - 1)
         ycoord = random.randint(1,BOARDHEIGHT - height - 1)
         carveroom(space,xcoord,ycoord,width,height)
         centre = (xcoord + width // 2,ycoord + height // 2)
         carvecorridor(space,rooms[-1],centre)
         rooms.append(centre)
+
+    if arena is not None:
+        carveroom(space,arena[0],arena[1],arena[2],arena[3])
 
     if required is not None and len(required) > 0:
         for coordinate in required:
@@ -407,7 +411,7 @@ def attackcoordinates (enemy):
 
     if isinstance(enemy, boss):
         model = enemy.attacksqmodel1
-        if enemy.attackcounter == 2:
+        if enemy.attackcounter >= BOSS_ATTACK_WINDUP - 1:
             model = enemy.attacksqmodel2
         if enemy.attacktype == 'crossfire':
             for x in range(BOARDWIDTH):
@@ -461,10 +465,11 @@ def attackplayer (player, enemies, space = None):
                 enemy.attacklocation = None
         else:
             enemy.attack(space)
-            if enemy.attackcounter == 2:
+            if enemy.attackcounter == BOSS_ATTACK_WINDUP:
                 if tuple(player.location) in attackcoordinates(enemy):
                     player.model = '*'
                     player.attacked()
+                    player.notice = '~Boss attack struck you.~'
 
 
 def bombcoordinates (item, space = None):
@@ -698,7 +703,7 @@ def hudlines (player, level = None, enemyboss = None, armedbombs = 0, scoregoal 
         lines.append(f'      THREATCON: {statbar(level + 1,3)}')
     if enemyboss is not None:
         lines.append(f'      BOSS HEALTH: {statbar(enemyboss.health,10)}')
-        if enemyboss.attackcounter == 1:
+        if enemyboss.attackcounter > 0:
             lines.append(f'      BOSS WINDUP: {enemyboss.attackname}')
         lines.append(f'    {enemyboss.lines}')
         lines.append('    -----------------------------------')
