@@ -213,7 +213,7 @@ def printgame (play, level = None, targets = None, necromancers = None, bullets 
             explored.update(visible)
             entitydict = fogdict(entitydict,space,visible,explored,destroyedwalls)
     sidebar = hudlines(play,level,enemyboss,0 if bombs is None else len(bombs),scoregoal)
-    printgameframe(entitydict,sidebar,messagelines(play,enemyboss))
+    printgameframe(entitydict,sidebar,messagelines(play,enemyboss),play.status == 'dead')
 
 
 #THREATCON LEVELS

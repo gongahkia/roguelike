@@ -773,6 +773,13 @@ def boardlines (entitydict):
     return lines
 
 
+def gameoverlines ():
+    lines = ['' for row in range(BOARDHEIGHT)]
+    lines[BOARDHEIGHT // 2 - 1] = '~GAME OVER~'.center(BOARDWIDTH)
+    lines[BOARDHEIGHT // 2 + 1] = 'THANKS FOR PLAYING'.center(BOARDWIDTH)
+    return lines
+
+
 def printdict (entitydict):
     lines = boardlines(entitydict)
     printscreen(lines,True)
@@ -786,13 +793,14 @@ def centersidebar (lines):
     return [''] * padding + sidebar
 
 
-def printgameframe (entitydict, sidebar, messages):
+def printgameframe (entitydict, sidebar, messages, gameover = False):
     sidebar = centersidebar(sidebar)
+    lines = gameoverlines() if gameover else boardlines(entitydict)
     clearscreen()
     border = colourtext('X',CYAN)
     topborder = colourtext('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',CYAN)
     print(topborder)
-    for index,line in enumerate(boardlines(entitydict)):
+    for index,line in enumerate(lines):
         side = sidebar[index] if index < len(sidebar) else ''
         print(f'{border}{colourboardline(line)}{border}  {colourtext(side.center(SIDEBARWIDTH),WHITE)}')
     print(topborder)
@@ -833,8 +841,6 @@ def messagelines (player, enemyboss = None):
         lines.append(f'BOSS COMMS: {enemyboss.lines}')
     if player.notice != '':
         lines.append(f'NOTICE: {player.notice}')
-    if player.status == 'dead':
-        lines.extend(['               ~GAME OVER~', '            THANKS FOR PLAYING'])
     return lines
 
 
