@@ -38,6 +38,7 @@ COLOURS = {
     'a': YELLOW,
     '&': YELLOW,
     'B': MAGENTA,
+    'D': MAGENTA,
     'T': YELLOW,
     '+': YELLOW,
     '!': RED,
@@ -162,6 +163,13 @@ class torch:
         self.location = list(location)
         self.model = 'T'
         self.lightradius = lightradius
+
+
+class door:
+
+    def __init__ (self, location):
+        self.location = list(location)
+        self.model = 'D'
 
 
 class ammo:
@@ -631,7 +639,7 @@ def addentity (entitydict, location, model):
             entitydict[coordinate] = char
 
 
-def updatedict (player, targets = None, necromancers = None, bullets = None, bombs = None, ammo = None, enemyboss = None, explosions = None, torches = None):
+def updatedict (player, targets = None, necromancers = None, bullets = None, bombs = None, ammo = None, enemyboss = None, explosions = None, torches = None, exitdoor = None):
     entitydict = {}
     targets = [] if targets is None else targets
     necromancers = [] if necromancers is None else necromancers
@@ -650,6 +658,8 @@ def updatedict (player, targets = None, necromancers = None, bullets = None, bom
         addentity(entitydict,ammo.location,ammo.model)
     for item in torches:
         addentity(entitydict,item.location,item.model)
+    if exitdoor is not None:
+        addentity(entitydict,exitdoor.location,exitdoor.model)
     for item in targets:
         if item.model != ' ':
             addentity(entitydict,item.location,item.model)
