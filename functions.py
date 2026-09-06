@@ -93,7 +93,7 @@ class player:
         if self.health <= 0:
             self.health = 0
             self.model = 'F'
-            self.status = 'dead\n\n               ~GAME OVER~               \n            THANKS FOR PLAYING            '
+            self.status = 'dead'
 
     def deconstruct (self):
         self.model=''
@@ -696,11 +696,20 @@ def printdict (entitydict):
     printscreen(lines,True)
 
 
+def centersidebar (lines):
+    sidebar = []
+    for line in lines:
+        sidebar.extend(line.split('\n'))
+    padding = max((BOARDHEIGHT - len(sidebar)) // 2,0)
+    return [''] * padding + sidebar
+
+
 def printgameframe (entitydict, sidebar, messages):
+    sidebar = centersidebar(sidebar)
     clearscreen()
     border = colourtext('X',CYAN)
     topborder = colourtext('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',CYAN)
-    print(f'{topborder}  {colourtext("STATUS".center(SIDEBARWIDTH),WHITE)}')
+    print(topborder)
     for index,line in enumerate(boardlines(entitydict)):
         side = sidebar[index] if index < len(sidebar) else ''
         print(f'{border}{colourboardline(line)}{border}  {colourtext(side.center(SIDEBARWIDTH),WHITE)}')
@@ -738,6 +747,8 @@ def messagelines (player, enemyboss = None):
         lines.append(f'BOSS COMMS: {enemyboss.lines}')
     if player.notice != '':
         lines.append(f'NOTICE: {player.notice}')
+    if player.status == 'dead':
+        lines.extend(['               ~GAME OVER~', '            THANKS FOR PLAYING'])
     return lines
 
 

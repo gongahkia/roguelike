@@ -206,9 +206,7 @@ def printgame (play, level = None, targets = None, necromancers = None, bullets 
             visible = visiblecoordinates(play,space,vision)
             explored.update(visible)
             entitydict = fogdict(entitydict,space,visible,explored,destroyedwalls)
-    sidebar = []
-    for line in hudlines(play,level,enemyboss,0 if bombs is None else len(bombs),scoregoal):
-        sidebar.extend(line.splitlines())
+    sidebar = hudlines(play,level,enemyboss,0 if bombs is None else len(bombs),scoregoal)
     printgameframe(entitydict,sidebar,messagelines(play,enemyboss))
 
 
