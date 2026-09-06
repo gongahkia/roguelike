@@ -1,5 +1,5 @@
 from titlescreen import titlescreen
-from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, mapdict, printgameframe, hudlines, messagelines, promptinput, threatconlvl, runshop
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, dashplayer, activateward, tickplayerabilities, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, mapdict, printgameframe, hudlines, messagelines, promptinput, threatconlvl, runshop
 
 
 #GAME SETTINGS
@@ -98,6 +98,10 @@ def playeraction (play, user, bullets, bombs, space):
     moveplayer(play,user,space)
     if play.model == '*' or play.health <= 0:
         return
+    if user == 'q':
+        dashplayer(play,space)
+    if user == 'r':
+        activateward(play)
     if user == 'e':
         if play.shoot():
             bullets.append(bullet(play.model,play.location))
@@ -180,8 +184,10 @@ def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None, de
         blast = bombcoordinates(item,space)
         explosions.update(blast)
         if tuple(play.location) in blast:
-            play.attacked()
-            play.notice = '~You were caught in the blast.~'
+            if play.attacked():
+                play.notice = '~You were caught in the blast.~'
+            else:
+                play.notice = '~Your ward absorbed the blast.~'
         for enemy in list(targets):
             if tuple(enemy.location) in blast:
                 targetdestroyed(play,enemy,targets)
@@ -223,7 +229,8 @@ def runstage (settings):
     printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,space = space,explored = explored,vision = settings['vision'],destroyedwalls = destroyedwalls,scoregoal = settings['score'])
 
     while play.health > 0 and play.score < settings['score']:
-        user = promptinput('[W/A/S/D/E/B]: ')
+        user = promptinput('[W/A/S/D/E/B/Q/R]: ')
+        tickplayerabilities(play)
         play.notice = ''
         playeraction(play,user,bullets,bombs,space)
         ammopickup = collectammo(play,ammopickup)
@@ -245,6 +252,9 @@ def resetplayer (play):
         play.bombs = 1
     play.status = 'alive'
     play.notice = ''
+    play.dashcooldown = 0
+    play.wardactive = False
+    play.wardcooldown = 0
 
 
 def bossminionlimit (enemyboss):
@@ -284,7 +294,8 @@ def runboss (play):
     printgame(play,None,targets,necromancers,bullets,bombs,ammopickup,enemyboss,space = space,destroyedwalls = destroyedwalls)
 
     while play.health > 0 and enemyboss.health > 0:
-        user = promptinput('[W/A/S/D/E/B]: ')
+        user = promptinput('[W/A/S/D/E/B/Q/R]: ')
+        tickplayerabilities(play)
         play.notice = ''
         playeraction(play,user,bullets,bombs,space)
         ammopickup = collectammo(play,ammopickup)

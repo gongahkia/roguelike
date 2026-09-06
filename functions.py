@@ -15,6 +15,8 @@ BOARDWIDTH = 41
 BOARDHEIGHT = 19
 SIDEBARWIDTH = 30
 BOSS_ATTACK_WINDUP = 4
+DASH_COOLDOWN = 3
+WARD_COOLDOWN = 4
 RESET = '\033[0m'
 CYAN = '\033[96m'
 BLUE = '\033[94m'
@@ -58,6 +60,9 @@ class player:
         self.bombs = 0
         self.status = 'alive'
         self.notice = ''
+        self.dashcooldown = 0
+        self.wardactive = False
+        self.wardcooldown = 0
 
     def face (self, face:str):
         if face == 'w':
@@ -89,11 +94,15 @@ class player:
         self.ammo += amount
 
     def attacked (self):
+        if self.wardactive:
+            self.wardactive = False
+            return False
         self.health -= 1
         if self.health <= 0:
             self.health = 0
             self.model = 'F'
             self.status = 'dead'
+        return True
 
     def deconstruct (self):
         self.model=''
@@ -224,21 +233,43 @@ class boss:
             self.attackname = 'DIAGONAL SWEEP'
         elif self.attacktype == 'pulse':
             self.attackname = 'ARCANE PULSE'
+        self.updateface()
+
+    def faceoptions (self):
+        if self.attackcounter >= BOSS_ATTACK_WINDUP - 1:
+            return ['~(!!!)~','~(O_O)~','~(>_<)~']
+        if self.attackcounter > 0:
+            if self.attacktype == 'crossfire':
+                return ['~(>_>)~','~(o_o)~','~(0_0)~']
+            if self.attacktype == 'diagonal':
+                return ['~(/_/)~','~(<_<)~','~(>_>)~']
+            return ['~(._.)~','~(o.o)~','~(O_O)~']
+        if self.health < 2:
+            return ['~(;_;)~','~(T_T)~','~(x_x)~']
+        if self.health < 4:
+            return ['~(._.)~','~(u_u)~','~(-_-)~']
+        if self.health < 8:
+            return ['~(>_>)~','~(o_o)~','~(0_0)~']
+        return ['~(^_^)~','~(o_o)~','~(-_-)~']
+
+    def updateface (self):
+        self.model = random.choice(self.faceoptions())
 
     def damaged (self, amount = 1):
         self.health -= amount
+        self.updateface()
 
     def phase2 (self):
         self.lines = 'pReParE FoR yOuR eTerNaL SuFFeRiNg!'
-        self.model = '  ~(◍•ᴗ•◍)~  '
+        self.updateface()
 
     def phase3 (self):
         self.lines = "Hold on, i need go toliet break pls "
-        self.model = ' ヾ(๑╹ꇴ◠๑)ﾉ '
+        self.updateface()
 
     def phase4 (self):
         self.lines = 'Bro give chance pls I first time :('
-        self.model = '  ~~(´З`)~~  '
+        self.updateface()
 
     def destroyed (self):
         self.lines = 'NOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO!'
@@ -249,6 +280,8 @@ class boss:
         if self.attackcounter > BOSS_ATTACK_WINDUP:
             self.attackcounter = 0
             self.newattack(space)
+            return
+        self.updateface()
 
 
 #GENERAL FUNCTIONS
@@ -392,6 +425,49 @@ def moveplayer (player, user, space = None):
             player.notice = '~A wall blocks your path.~'
 
 
+def dashplayer (player, space = None):
+    if player.dashcooldown > 0:
+        player.notice = '~Dash is recharging.~'
+        return
+    directions = {'^': 'w','<': 'a','V': 's','>': 'd'}
+    direction = directions.get(player.model)
+    if direction is None:
+        player.notice = '~Choose a direction before dashing.~'
+        return
+    start = list(player.location)
+    for step in range(2):
+        previous = list(player.location)
+        player.movement(direction)
+        clampplayer(player)
+        if space is not None and tuple(player.location) not in space:
+            player.location = previous
+            break
+    if player.location == start:
+        player.notice = '~A wall blocks your dash.~'
+        return
+    player.dashcooldown = DASH_COOLDOWN
+    player.notice = '~You dashed forward.~'
+
+
+def activateward (player):
+    if player.wardactive:
+        player.notice = '~Your ward is already active.~'
+        return
+    if player.wardcooldown > 0:
+        player.notice = '~Ward is recharging.~'
+        return
+    player.wardactive = True
+    player.wardcooldown = WARD_COOLDOWN
+    player.notice = '~A ward will absorb the next hit.~'
+
+
+def tickplayerabilities (player):
+    if player.dashcooldown > 0:
+        player.dashcooldown -= 1
+    if player.wardcooldown > 0:
+        player.wardcooldown -= 1
+
+
 def attackcoordinates (enemy):
     attackdict = {}
     if enemy.attackcounter == 0:
@@ -458,9 +534,12 @@ def attackplayer (player, enemies, space = None):
             elif enemy.attackcounter == 3:
                 enemy.attackcounter = 4
                 if tuple(player.location) in attackcoordinates(enemy):
-                    player.model = '*'
-                    player.attacked()
-                    player.notice = '~Necromancer spell struck you.~'
+                    if player.attacked():
+                        if player.health > 0:
+                            player.model = '*'
+                        player.notice = '~Necromancer spell struck you.~'
+                    else:
+                        player.notice = '~Your ward absorbed the spell.~'
             else:
                 enemy.attackcounter = 0
                 enemy.attacklocation = None
@@ -468,9 +547,12 @@ def attackplayer (player, enemies, space = None):
             enemy.attack(space)
             if enemy.attackcounter == BOSS_ATTACK_WINDUP:
                 if tuple(player.location) in attackcoordinates(enemy):
-                    player.model = '*'
-                    player.attacked()
-                    player.notice = '~Boss attack struck you.~'
+                    if player.attacked():
+                        if player.health > 0:
+                            player.model = '*'
+                        player.notice = '~Boss attack struck you.~'
+                    else:
+                        player.notice = '~Your ward absorbed the attack.~'
 
 
 def bombcoordinates (item, space = None):
@@ -737,6 +819,10 @@ def hudlines (player, level = None, enemyboss = None, armedbombs = 0, scoregoal 
     lines.append(f'AMMO: {statbar(player.ammo,5)}')
     lines.append(f'BOMBS: {statbar(player.bombs,5)}  ARMED: {statbar(armedbombs,3)}')
     lines.append(f'SCORE: {statbar(player.score,scoregoal)}')
+    dashstatus = 'READY' if player.dashcooldown == 0 else 'RECHARGING'
+    wardstatus = 'ACTIVE' if player.wardactive else 'READY' if player.wardcooldown == 0 else 'RECHARGING'
+    lines.append(f'Q DASH: {dashstatus}')
+    lines.append(f'R WARD: {wardstatus}')
     lines.append(f'PLAYER: {player.status}')
     return lines
 
