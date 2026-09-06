@@ -13,6 +13,7 @@ except ImportError:
 
 BOARDWIDTH = 41
 BOARDHEIGHT = 19
+SIDEBARWIDTH = 30
 BOSS_ATTACK_WINDUP = 4
 RESET = '\033[0m'
 CYAN = '\033[96m'
@@ -680,14 +681,32 @@ def printscreen (lines, gameboard = False):
     print (colourtext('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',CYAN))
 
 
-def printdict (entitydict):
+def boardlines (entitydict):
     lines = []
     for y in reversed(range(BOARDHEIGHT)):
         string = ''
         for x in range(BOARDWIDTH):
             string += entitydict.get((x,y),' ')
         lines.append(string)
+    return lines
+
+
+def printdict (entitydict):
+    lines = boardlines(entitydict)
     printscreen(lines,True)
+
+
+def printgameframe (entitydict, sidebar, messages):
+    clearscreen()
+    border = colourtext('X',CYAN)
+    topborder = colourtext('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',CYAN)
+    print(f'{topborder}  {colourtext("STATUS".center(SIDEBARWIDTH),WHITE)}')
+    for index,line in enumerate(boardlines(entitydict)):
+        side = sidebar[index] if index < len(sidebar) else ''
+        print(f'{border}{colourboardline(line)}{border}  {colourtext(side.center(SIDEBARWIDTH),WHITE)}')
+    print(topborder)
+    for message in messages:
+        print(colourtext(f'  {message}',WHITE))
 
 
 #HUD
@@ -700,20 +719,25 @@ def statbar (value, maximum):
 def hudlines (player, level = None, enemyboss = None, armedbombs = 0, scoregoal = 5):
     lines = []
     if level is not None:
-        lines.append(f'      THREATCON: {statbar(level + 1,3)}')
+        lines.append(f'THREATCON: {statbar(level + 1,3)}')
     if enemyboss is not None:
-        lines.append(f'      BOSS HEALTH: {statbar(enemyboss.health,10)}')
+        lines.append(f'BOSS HEALTH: {statbar(enemyboss.health,10)}')
         if enemyboss.attackcounter > 0:
-            lines.append(f'      BOSS WINDUP: {enemyboss.attackname}')
-        lines.append(f'    {enemyboss.lines}')
-        lines.append('    -----------------------------------')
-    lines.append(f'      HEALTH: {statbar(player.health,5)}')
-    lines.append(f'      AMMO: {statbar(player.ammo,5)}')
-    lines.append(f'      BOMBS: {statbar(player.bombs,5)}  ARMED: {statbar(armedbombs,3)}')
-    lines.append(f'      SCORE: {statbar(player.score,scoregoal)}')
-    lines.append(f'      PLAYER: {player.status}')
+            lines.append(f'BOSS WINDUP: {enemyboss.attackname}')
+    lines.append(f'HEALTH: {statbar(player.health,5)}')
+    lines.append(f'AMMO: {statbar(player.ammo,5)}')
+    lines.append(f'BOMBS: {statbar(player.bombs,5)}  ARMED: {statbar(armedbombs,3)}')
+    lines.append(f'SCORE: {statbar(player.score,scoregoal)}')
+    lines.append(f'PLAYER: {player.status}')
+    return lines
+
+
+def messagelines (player, enemyboss = None):
+    lines = []
+    if enemyboss is not None:
+        lines.append(f'BOSS COMMS: {enemyboss.lines}')
     if player.notice != '':
-        lines.append(f'    {player.notice}')
+        lines.append(f'NOTICE: {player.notice}')
     return lines
 
 

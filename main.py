@@ -1,5 +1,5 @@
 from titlescreen import titlescreen
-from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, mapdict, printdict, interface, promptinput, threatconlvl, runshop
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, fogdict, mapdict, printgameframe, hudlines, messagelines, promptinput, threatconlvl, runshop
 
 
 #GAME SETTINGS
@@ -206,8 +206,10 @@ def printgame (play, level = None, targets = None, necromancers = None, bullets 
             visible = visiblecoordinates(play,space,vision)
             explored.update(visible)
             entitydict = fogdict(entitydict,space,visible,explored,destroyedwalls)
-    printdict(entitydict)
-    interface(play,level,enemyboss,0 if bombs is None else len(bombs),scoregoal)
+    sidebar = []
+    for line in hudlines(play,level,enemyboss,0 if bombs is None else len(bombs),scoregoal):
+        sidebar.extend(line.splitlines())
+    printgameframe(entitydict,sidebar,messagelines(play,enemyboss))
 
 
 #THREATCON LEVELS
