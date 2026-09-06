@@ -1,5 +1,5 @@
 from titlescreen import titlescreen
-from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, torch, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, dashplayer, activateward, tickplayerabilities, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, lightcoordinates, fogdict, mapdict, printgameframe, hudlines, promptinput, threatconlvl, runshop
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, torch, door, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, dashplayer, activateward, tickplayerabilities, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, lightcoordinates, fogdict, mapdict, printgameframe, hudlines, promptinput, threatconlvl, runshop
 
 
 #GAME SETTINGS
@@ -207,10 +207,10 @@ def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None, de
     return remaining,explosions
 
 
-def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5, destroyedwalls = None, scoregoal = 5, torches = None):
-    entitydict = updatedict(play,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,torches)
+def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5, destroyedwalls = None, scoregoal = 5, torches = None, exitdoor = None, revealed = False):
+    entitydict = updatedict(play,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,torches,exitdoor)
     if space is not None:
-        if explored is None:
+        if revealed or explored is None:
             entitydict = mapdict(entitydict,space,destroyedwalls)
         else:
             visible = lightcoordinates(play,space,vision,bullets,bombs,torches,explosions)
@@ -221,6 +221,31 @@ def printgame (play, level = None, targets = None, necromancers = None, bullets 
 
 
 #THREATCON LEVELS
+
+def opendoor (play, space, torches):
+    locations = {
+        coordinate for coordinate in space
+        if abs(coordinate[0] - play.location[0]) + abs(coordinate[1] - play.location[1]) >= 6
+    }
+    if len(locations) == 0:
+        locations = space
+    location = openlocation(play,[],[],[],[],space = locations,torches = torches)
+    return door(location)
+
+
+def exitstage (play, settings, space, torches):
+    exitdoor = opendoor(play,space,torches)
+    while True:
+        printgame(play,settings['level'],space = space,scoregoal = settings['score'],torches = torches,exitdoor = exitdoor,revealed = True)
+        if play.location == exitdoor.location:
+            return play
+        user = promptinput('[W/A/S/D/Q]: ')
+        tickplayerabilities(play)
+        if user == 'q':
+            dashplayer(play,space)
+        else:
+            moveplayer(play,user,space)
+
 
 def runstage (settings):
     play = player()
@@ -240,10 +265,13 @@ def runstage (settings):
         ammopickup = collectammo(play,ammopickup)
         bullets = updatebullets(play,bullets,targets,necromancers,space)
         bombs,explosions = updatebombs(play,bombs,targets,necromancers,space,destroyedwalls = destroyedwalls)
-        attackplayer(play,necromancers,space)
-        ammopickup = refillstageentities(settings,play,targets,necromancers,bullets,bombs,ammopickup,space,torches)
+        if play.score < settings['score']:
+            attackplayer(play,necromancers,space)
+            ammopickup = refillstageentities(settings,play,targets,necromancers,bullets,bombs,ammopickup,space,torches)
         printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions,space,explored,settings['vision'],destroyedwalls,settings['score'],torches)
-    return play
+    if play.health <= 0:
+        return play
+    return exitstage(play,settings,space,torches)
 
 
 #BOSS FIGHT
