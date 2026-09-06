@@ -17,6 +17,7 @@ SIDEBARWIDTH = 30
 BOSS_ATTACK_WINDUP = 4
 DASH_COOLDOWN = 3
 WARD_COOLDOWN = 4
+EXPLOSION_LIGHT_RADIUS = 1
 RESET = '\033[0m'
 CYAN = '\033[96m'
 BLUE = '\033[94m'
@@ -37,6 +38,7 @@ COLOURS = {
     'a': YELLOW,
     '&': YELLOW,
     'B': MAGENTA,
+    'T': YELLOW,
     '+': YELLOW,
     '!': RED,
     '#': BLUE,
@@ -114,6 +116,7 @@ class bullet:
         self.model = '&'
         self.location = list(playerlocation)
         self.active = False
+        self.lightradius = 2
 
         if playermodel == '^':
             self.direction = 'up'
@@ -146,10 +149,19 @@ class bomb:
         self.model = 'B'
         self.fuse = fuse
         self.radius = radius
+        self.lightradius = 3
 
     def tick (self):
         self.fuse -= 1
         return self.fuse <= 0
+
+
+class torch:
+
+    def __init__ (self, location, lightradius = 4):
+        self.location = list(location)
+        self.model = 'T'
+        self.lightradius = lightradius
 
 
 class ammo:
@@ -619,13 +631,14 @@ def addentity (entitydict, location, model):
             entitydict[coordinate] = char
 
 
-def updatedict (player, targets = None, necromancers = None, bullets = None, bombs = None, ammo = None, enemyboss = None, explosions = None):
+def updatedict (player, targets = None, necromancers = None, bullets = None, bombs = None, ammo = None, enemyboss = None, explosions = None, torches = None):
     entitydict = {}
     targets = [] if targets is None else targets
     necromancers = [] if necromancers is None else necromancers
     bullets = [] if bullets is None else bullets
     bombs = [] if bombs is None else bombs
     explosions = set() if explosions is None else explosions
+    torches = [] if torches is None else torches
 
     for enemy in necromancers:
         entitydict.update(attackcoordinates(enemy))
@@ -635,6 +648,8 @@ def updatedict (player, targets = None, necromancers = None, bullets = None, bom
         entitydict[coordinate] = '*'
     if ammo is not None and ammo.model != ' ':
         addentity(entitydict,ammo.location,ammo.model)
+    for item in torches:
+        addentity(entitydict,item.location,item.model)
     for item in targets:
         if item.model != ' ':
             addentity(entitydict,item.location,item.model)
@@ -651,9 +666,10 @@ def updatedict (player, targets = None, necromancers = None, bullets = None, bom
     return entitydict
 
 
-def visiblecoordinates (player, space, radius = 5):
+def visiblecoordinates (origin, space, radius = 5):
     visible = set()
-    queue = deque([(tuple(player.location),0)])
+    location = origin.location if hasattr(origin,'location') else origin
+    queue = deque([(tuple(location),0)])
     while len(queue) > 0:
         coordinate,distance = queue.popleft()
         if coordinate in visible or distance > radius:
@@ -666,6 +682,19 @@ def visiblecoordinates (player, space, radius = 5):
             if adjacent[0] >= 0 and adjacent[0] < BOARDWIDTH and adjacent[1] >= 0 and adjacent[1] < BOARDHEIGHT:
                 if adjacent not in visible:
                     queue.append((adjacent,distance + 1))
+    return visible
+
+
+def lightcoordinates (player, space, vision = 5, bullets = None, bombs = None, torches = None, explosions = None):
+    visible = visiblecoordinates(player,space,vision)
+    sources = []
+    sources.extend([] if bullets is None else bullets)
+    sources.extend([] if bombs is None else bombs)
+    sources.extend([] if torches is None else torches)
+    for source in sources:
+        visible.update(visiblecoordinates(source,space,source.lightradius))
+    for coordinate in [] if explosions is None else explosions:
+        visible.update(visiblecoordinates(coordinate,space,EXPLOSION_LIGHT_RADIUS))
     return visible
 
 
@@ -793,7 +822,7 @@ def centersidebar (lines):
     return [''] * padding + sidebar
 
 
-def printgameframe (entitydict, sidebar, messages, gameover = False):
+def printgameframe (entitydict, sidebar, gameover = False):
     sidebar = centersidebar(sidebar)
     lines = gameoverlines() if gameover else boardlines(entitydict)
     clearscreen()
@@ -804,8 +833,6 @@ def printgameframe (entitydict, sidebar, messages, gameover = False):
         side = sidebar[index] if index < len(sidebar) else ''
         print(f'{border}{colourboardline(line)}{border}  {colourtext(side.center(SIDEBARWIDTH),WHITE)}')
     print(topborder)
-    for message in messages:
-        print(colourtext(f'  {message}',WHITE))
 
 
 #HUD
@@ -832,15 +859,6 @@ def hudlines (player, level = None, enemyboss = None, armedbombs = 0, scoregoal 
     lines.append(f'Q DASH: {dashstatus}')
     lines.append(f'R WARD: {wardstatus}')
     lines.append(f'PLAYER: {player.status}')
-    return lines
-
-
-def messagelines (player, enemyboss = None):
-    lines = []
-    if enemyboss is not None:
-        lines.append(f'BOSS COMMS: {enemyboss.lines}')
-    if player.notice != '':
-        lines.append(f'NOTICE: {player.notice}')
     return lines
 
 
