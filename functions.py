@@ -1,4 +1,8 @@
 import random
+import os
+import re
+import select
+import subprocess
 import sys
 import time
 from collections import deque
@@ -18,6 +22,190 @@ BOSS_ATTACK_WINDUP = 4
 DASH_COOLDOWN = 3
 WARD_COOLDOWN = 4
 EXPLOSION_LIGHT_RADIUS = 1
+
+ASCIIICONS = {
+    'player_up': '^',
+    'player_left': '<',
+    'player_down': 'V',
+    'player_right': '>',
+    'player_hit': '*',
+    'player_dead': 'F',
+    'bullet': '&',
+    'bomb': 'B',
+    'torch': 'T',
+    'door': 'D',
+    'ammo': 'a',
+    'target': 't',
+    'necromancer': 'N',
+    'attack_charge': '+',
+    'attack_warning': '!',
+    'attack_imminent': '#',
+    'explosion': '*',
+    'destroyed_wall': 'x',
+    'threatcon': '',
+    'curse': '',
+    'boss': '',
+    'health': '',
+    'score': '',
+    'dash': '',
+    'ward': '',
+    'shop_health': 'O',
+    'shop_ammo': '&',
+    'shop_bombs': 'B'
+}
+
+NERDICONS = {
+    'player_up': '\uf062',
+    'player_left': '\uf060',
+    'player_down': '\uf063',
+    'player_right': '\uf061',
+    'player_hit': '\uf071',
+    'player_dead': '\uf119',
+    'bullet': '\uf111',
+    'bomb': '\uf1e2',
+    'torch': '\uf0eb',
+    'door': '\uf08b',
+    'ammo': '\uf135',
+    'target': '\uf05b',
+    'necromancer': '\uf188',
+    'attack_charge': '\uf0e7',
+    'attack_warning': '\uf071',
+    'attack_imminent': '\uf06d',
+    'explosion': '\uf06d',
+    'destroyed_wall': '\uf0c4',
+    'threatcon': '\uf0c9',
+    'curse': '\uf188',
+    'boss': '\uf188',
+    'health': '\uf004',
+    'score': '\uf005',
+    'dash': '\uf0e7',
+    'ward': '\uf132',
+    'shop_health': '\uf004',
+    'shop_ammo': '\uf135',
+    'shop_bombs': '\uf1e2'
+}
+
+
+def isnerdfont (fontname):
+    if fontname is None:
+        return False
+    return bool(re.search(r'\bnerd\b|\b(?:nf|nfm|nfp)\b',fontname,flags = re.IGNORECASE))
+
+
+def ghosttyfont ():
+    try:
+        result = subprocess.run(
+            ['ghostty','+show-config'],
+            capture_output = True,
+            check = False,
+            text = True,
+            timeout = 0.25
+        )
+    except (OSError,subprocess.TimeoutExpired):
+        return None
+    for line in result.stdout.splitlines():
+        match = re.match(r'^font-family\s*=\s*(.+)$',line)
+        if match is not None:
+            return match.group(1).strip()
+    return None
+
+
+def terminalfont ():
+    if termios is None or not sys.stdin.isatty() or not sys.stdout.isatty():
+        return None
+    try:
+        filedescriptor = sys.stdin.fileno()
+        oldsettings = termios.tcgetattr(filedescriptor)
+    except (OSError,termios.error):
+        return None
+
+    newsettings = termios.tcgetattr(filedescriptor)
+    newsettings[3] &= ~(termios.ICANON | termios.ECHO)
+    newsettings[6][termios.VMIN] = 0
+    newsettings[6][termios.VTIME] = 1
+    response = b''
+    try:
+        termios.tcsetattr(filedescriptor,termios.TCSADRAIN,newsettings)
+        sys.stdout.write('\033]50;?\a')
+        sys.stdout.flush()
+        ready,_,_ = select.select([filedescriptor],[],[],0.1)
+        if ready:
+            response = os.read(filedescriptor,1024)
+    except OSError:
+        return None
+    finally:
+        termios.tcsetattr(filedescriptor,termios.TCSADRAIN,oldsettings)
+
+    match = re.search(rb'\033\]50;([^\033\a]*)(?:\a|\033\\)',response)
+    if match is None:
+        return None
+    return match.group(1).decode(errors = 'replace')
+
+
+def detectnerdfont (environ = None, ghosttyfontprobe = None, terminalfontprobe = None):
+    environ = os.environ if environ is None else environ
+    theme = environ.get('ROGUELIKE_ICON_THEME','auto').lower()
+    if theme == 'nerd':
+        return True
+    if theme == 'ascii':
+        return False
+    if theme != 'auto':
+        return False
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        return False
+
+    ghosttyfontprobe = ghosttyfont if ghosttyfontprobe is None else ghosttyfontprobe
+    terminalfontprobe = terminalfont if terminalfontprobe is None else terminalfontprobe
+    if environ.get('TERM') == 'xterm-ghostty':
+        return isnerdfont(ghosttyfontprobe())
+    if environ.get('TERM','').startswith('xterm'):
+        return isnerdfont(terminalfontprobe())
+    return False
+
+
+ICONTHEME = 'ascii'
+ICONS = dict(ASCIIICONS)
+
+
+def icon (name):
+    return ICONS[name]
+
+
+def iconlabel (name, text):
+    glyph = icon(name)
+    if glyph == '':
+        return text
+    return f'{glyph} {text}'
+
+
+def configureicontheme (enabled = None):
+    global ICONTHEME,ICONS,COLOURS
+    enabled = detectnerdfont() if enabled is None else enabled
+    ICONTHEME = 'nerd' if enabled else 'ascii'
+    ICONS = dict(NERDICONS if enabled else ASCIIICONS)
+    COLOURS = {
+        icon('player_up'): CYAN,
+        icon('player_left'): CYAN,
+        icon('player_down'): CYAN,
+        icon('player_right'): CYAN,
+        icon('player_dead'): RED,
+        icon('target'): RED,
+        icon('ammo'): YELLOW,
+        icon('bullet'): YELLOW,
+        icon('bomb'): MAGENTA,
+        icon('door'): MAGENTA,
+        icon('torch'): YELLOW,
+        icon('attack_charge'): YELLOW,
+        icon('attack_warning'): RED,
+        icon('attack_imminent'): BLUE,
+        icon('destroyed_wall'): YELLOW,
+        icon('explosion'): YELLOW,
+        icon('necromancer'): MAGENTA,
+        '#': BLUE,
+        '?': GREY,
+        '.': GREY
+    }
+    return ICONTHEME
 
 CURSES = [
     {'id': 'frail_body', 'name': 'FRAIL BODY', 'description': 'BEGIN WITH ONE HEALTH', 'modifiers': {'health': 1}},
@@ -69,27 +257,7 @@ MAGENTA = '\033[95m'
 GREY = '\033[90m'
 WHITE = '\033[97m'
 
-COLOURS = {
-    '^': CYAN,
-    '<': CYAN,
-    'V': CYAN,
-    '>': CYAN,
-    'F': RED,
-    't': RED,
-    'N': MAGENTA,
-    'a': YELLOW,
-    '&': YELLOW,
-    'B': MAGENTA,
-    'D': MAGENTA,
-    'T': YELLOW,
-    '+': YELLOW,
-    '!': RED,
-    '#': BLUE,
-    'x': YELLOW,
-    '*': YELLOW,
-    '?': GREY,
-    '.': GREY
-}
+configureicontheme()
 
 
 #CLASS OBJECTS
@@ -99,7 +267,8 @@ class player:
     def __init__ (self, health = 2, location = None):
         self.health = health
         self.location = [20,9] if location is None else list(location)
-        self.model= '^'
+        self.direction = 'w'
+        self.model = icon('player_up')
         self.ammo = 1
         self.score = 0
         self.bombs = 0
@@ -117,13 +286,17 @@ class player:
 
     def face (self, face:str):
         if face == 'w':
-            self.model = '^'
+            self.direction = face
+            self.model = icon('player_up')
         elif face == 'a':
-            self.model = '<'
+            self.direction = face
+            self.model = icon('player_left')
         elif face == 's':
-            self.model = 'V'
+            self.direction = face
+            self.model = icon('player_down')
         elif face == 'd':
-            self.model = '>'
+            self.direction = face
+            self.model = icon('player_right')
 
     def movement (self, direction:str):
         if direction == 'w':
@@ -152,7 +325,7 @@ class player:
         self.health -= 1
         if self.health <= 0:
             self.health = 0
-            self.model = 'F'
+            self.model = icon('player_dead')
             self.status = 'dead'
         return True
 
@@ -163,23 +336,23 @@ class player:
 class bullet:
 
     def __init__ (self, playermodel, playerlocation, maxrange = None):
-        self.model = '&'
+        self.model = icon('bullet')
         self.location = list(playerlocation)
         self.active = False
         self.lightradius = 2
         self.maxrange = maxrange
         self.travelled = 1
 
-        if playermodel == '^':
+        if playermodel == icon('player_up'):
             self.direction = 'up'
             self.location[1] += 1
-        elif playermodel == 'V':
+        elif playermodel == icon('player_down'):
             self.direction = 'down'
             self.location[1] -= 1
-        elif playermodel == '<':
+        elif playermodel == icon('player_left'):
             self.direction = 'left'
             self.location[0] -= 1
-        elif playermodel == '>':
+        elif playermodel == icon('player_right'):
             self.direction = 'right'
             self.location[0] += 1
 
@@ -198,7 +371,7 @@ class bomb:
 
     def __init__ (self, location, fuse = 3, radius = 2):
         self.location = list(location)
-        self.model = 'B'
+        self.model = icon('bomb')
         self.fuse = fuse
         self.radius = radius
         self.lightradius = 3
@@ -212,7 +385,7 @@ class torch:
 
     def __init__ (self, location, lightradius = 4):
         self.location = list(location)
-        self.model = 'T'
+        self.model = icon('torch')
         self.lightradius = lightradius
 
 
@@ -220,14 +393,14 @@ class door:
 
     def __init__ (self, location):
         self.location = list(location)
-        self.model = 'D'
+        self.model = icon('door')
 
 
 class ammo:
 
-    def __init__(self, location = None, model = 'a'):
+    def __init__(self, location = None, model = None):
         self.location = randomlocation() if location is None else list(location)
-        self.model = model
+        self.model = icon('ammo') if model is None else model
 
     def destroyed (self):
         self.model = ' '
@@ -235,9 +408,9 @@ class ammo:
 
 class target:
 
-    def __init__(self, location = None, model = 't'):
+    def __init__(self, location = None, model = None):
         self.location = randomlocation() if location is None else list(location)
-        self.model = model
+        self.model = icon('target') if model is None else model
 
     def destroyed (self):
         self.model = ' '
@@ -245,12 +418,12 @@ class target:
 
 class necromancer:
 
-    def __init__ (self, location = None, model = 'N', health = 1):
+    def __init__ (self, location = None, model = None, health = 1):
         self.location = randomlocation() if location is None else list(location)
-        self.model = model
-        self.attackloadmodel = '+'
-        self.attacksquaremodel1 = '!'
-        self.attacksquaremodel2 = '#'
+        self.model = icon('necromancer') if model is None else model
+        self.attackloadmodel = icon('attack_charge')
+        self.attacksquaremodel1 = icon('attack_warning')
+        self.attacksquaremodel2 = icon('attack_imminent')
         self.health = health
         self.attackcounter = 0
         self.attacklocation = None
@@ -276,8 +449,8 @@ class boss:
         self.location = [14,1]
         self.health = health
         self.model = model
-        self.attacksqmodel1 = '!'
-        self.attacksqmodel2 = '#'
+        self.attacksqmodel1 = icon('attack_warning')
+        self.attacksqmodel2 = icon('attack_imminent')
         self.lines = 'PuNy MoRtAl, yoU dArE cHalLenGE mE?'
         self.attackcounter = 0
         self.attacktype = 'crossfire'
@@ -466,7 +639,7 @@ def clampplayer (player):
 
 def moveplayer (player, user, space = None):
     previous = list(player.location)
-    if player.model == '*':
+    if player.model == icon('player_hit'):
         if user in ['w','a','s','d']:
             player.face(user)
             player.movement(user)
@@ -480,13 +653,13 @@ def moveplayer (player, user, space = None):
             player.notice = '~A wall blocks your path.~'
         return
 
-    if player.model == '^' and user == 'w':
+    if player.direction == 'w' and user == 'w':
         player.movement(user)
-    elif player.model == '<' and user == 'a':
+    elif player.direction == 'a' and user == 'a':
         player.movement(user)
-    elif player.model == 'V' and user == 's':
+    elif player.direction == 's' and user == 's':
         player.movement(user)
-    elif player.model == '>' and user == 'd':
+    elif player.direction == 'd' and user == 'd':
         player.movement(user)
     player.face(user)
     clampplayer(player)
@@ -500,8 +673,7 @@ def dashplayer (player, space = None):
     if player.dashcooldown > 0:
         player.notice = '~Dash is recharging.~'
         return
-    directions = {'^': 'w','<': 'a','V': 's','>': 'd'}
-    direction = directions.get(player.model)
+    direction = player.direction
     if direction is None:
         player.notice = '~Choose a direction before dashing.~'
         return
@@ -607,7 +779,7 @@ def attackplayer (player, enemies, space = None):
                 if tuple(player.location) in attackcoordinates(enemy):
                     if player.attacked():
                         if player.health > 0:
-                            player.model = '*'
+                            player.model = icon('player_hit')
                         player.notice = '~Necromancer spell struck you.~'
                     else:
                         player.notice = '~Your ward absorbed the spell.~'
@@ -620,7 +792,7 @@ def attackplayer (player, enemies, space = None):
                 if tuple(player.location) in attackcoordinates(enemy):
                     if player.attacked():
                         if player.health > 0:
-                            player.model = '*'
+                            player.model = icon('player_hit')
                         player.notice = '~Boss attack struck you.~'
                     else:
                         player.notice = '~Your ward absorbed the attack.~'
@@ -704,7 +876,7 @@ def updatedict (player, targets = None, necromancers = None, bullets = None, bom
     if enemyboss is not None:
         entitydict.update(attackcoordinates(enemyboss))
     for coordinate in explosions:
-        entitydict[coordinate] = '*'
+        entitydict[coordinate] = icon('explosion')
     if ammo is not None and ammo.model != ' ':
         addentity(entitydict,ammo.location,ammo.model)
     for item in torches:
@@ -769,12 +941,12 @@ def fogdict (entitydict, space, visible, explored, destroyedwalls = None):
                 if coordinate in entitydict:
                     foggeddict[coordinate] = entitydict[coordinate]
                 elif coordinate in destroyedwalls:
-                    foggeddict[coordinate] = 'x'
+                    foggeddict[coordinate] = icon('destroyed_wall')
                 elif coordinate not in space:
                     foggeddict[coordinate] = '#'
             elif coordinate in explored:
                 if coordinate in destroyedwalls:
-                    foggeddict[coordinate] = 'x'
+                    foggeddict[coordinate] = icon('destroyed_wall')
                 elif coordinate in space:
                     foggeddict[coordinate] = '.'
                 else:
@@ -793,7 +965,7 @@ def mapdict (entitydict, space, destroyedwalls = None):
             if coordinate in entitydict:
                 mapentities[coordinate] = entitydict[coordinate]
             elif coordinate in destroyedwalls:
-                mapentities[coordinate] = 'x'
+                mapentities[coordinate] = icon('destroyed_wall')
             elif coordinate not in space:
                 mapentities[coordinate] = '#'
     return mapentities
@@ -907,21 +1079,21 @@ def statbar (value, maximum):
 def hudlines (player, level = None, enemyboss = None, armedbombs = 0, scoregoal = 5, curse = None):
     lines = []
     if level is not None:
-        lines.append(f'THREATCON: {statbar(level + 1,3)}')
+        lines.append(iconlabel('threatcon',f'THREATCON: {statbar(level + 1,3)}'))
     if curse is not None:
-        lines.append(f'CURSE: {curse.replace("_"," ").upper()}')
+        lines.append(iconlabel('curse',f'CURSE: {curse.replace("_"," ").upper()}'))
     if enemyboss is not None:
-        lines.append(f'BOSS HEALTH: {statbar(enemyboss.health,10)}')
+        lines.append(iconlabel('boss',f'BOSS HEALTH: {statbar(enemyboss.health,10)}'))
         if enemyboss.attackcounter > 0:
-            lines.append(f'BOSS WINDUP: {enemyboss.attackname}')
-    lines.append(f'HEALTH: {statbar(player.health,5)}')
-    lines.append(f'AMMO: {statbar(player.ammo,5)}')
-    lines.append(f'BOMBS: {statbar(player.bombs,5)}  ARMED: {statbar(armedbombs,3)}')
-    lines.append(f'SCORE: {statbar(player.score,scoregoal)}')
+            lines.append(iconlabel('attack_charge',f'BOSS WINDUP: {enemyboss.attackname}'))
+    lines.append(iconlabel('health',f'HEALTH: {statbar(player.health,5)}'))
+    lines.append(iconlabel('shop_ammo',f'AMMO: {statbar(player.ammo,5)}'))
+    lines.append(iconlabel('shop_bombs',f'BOMBS: {statbar(player.bombs,5)}  ARMED: {statbar(armedbombs,3)}'))
+    lines.append(iconlabel('score',f'SCORE: {statbar(player.score,scoregoal)}'))
     dashstatus = 'READY' if player.dashcooldown == 0 else 'RECHARGING'
     wardstatus = 'ACTIVE' if player.wardactive else 'READY' if player.wardcooldown == 0 else 'RECHARGING'
-    lines.append(f'Q DASH: {dashstatus}')
-    lines.append(f'R WARD: {wardstatus}')
+    lines.append(iconlabel('dash',f'Q DASH: {dashstatus}'))
+    lines.append(iconlabel('ward',f'R WARD: {wardstatus}'))
     lines.append(f'PLAYER: {player.status}')
     return lines
 
@@ -940,7 +1112,7 @@ def threatconlvl (threatcon_lvl):
     lines = []
     for row in range(8):
         lines.append('')
-    lines.append('               ~DESCENT~')
+    lines.append(iconlabel('door','~DESCENT~').center(BOARDWIDTH))
     lines.append('      YOU DESCEND INTO THE DEPTHS')
     for row in range(8):
         lines.append('')
@@ -1012,7 +1184,7 @@ class shop:
             value = self.itemvalue(player,item)
             markers = ''
             for number in range(value):
-                markers += 'O ' if item == 'HEALTH' else '& ' if item == 'AMMO' else 'B '
+                markers += f'{icon("shop_health")} ' if item == 'HEALTH' else f'{icon("shop_ammo")} ' if item == 'AMMO' else f'{icon("shop_bombs")} '
             lines.append(f'     {pointer} {item:<6} |{markers:<10}|')
             lines.append('')
         lines.append(f'           POINTS LEFT: {points}')
@@ -1063,7 +1235,7 @@ class curseshop:
         return self.items[self.pointer]['id']
 
     def screenlines (self):
-        lines = ['~CURSE SHOP~','CHOOSE A BURDEN TO DESCEND','']
+        lines = [iconlabel('curse','~CURSE SHOP~'),'CHOOSE A BURDEN TO DESCEND','']
         for index,item in enumerate(self.items):
             label = f'[ {item["name"]} ]' if self.pointer == index else item['name']
             lines.append(label)

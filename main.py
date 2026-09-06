@@ -1,5 +1,5 @@
 from titlescreen import titlescreen
-from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, torch, door, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, dashplayer, activateward, tickplayerabilities, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, lightcoordinates, fogdict, mapdict, printgameframe, hudlines, promptinput, threatconlvl, cursemodifiers, cursebag, runcurseshop, runshop
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, torch, door, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, dashplayer, activateward, tickplayerabilities, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, lightcoordinates, fogdict, mapdict, printgameframe, hudlines, promptinput, threatconlvl, cursemodifiers, cursebag, runcurseshop, runshop, icon
 
 
 #GAME SETTINGS
@@ -103,7 +103,7 @@ def collectammo (play, ammopickup):
 
 def playeraction (play, user, bullets, bombs, space):
     moveplayer(play,user,space)
-    if play.model == '*' or play.health <= 0:
+    if play.model == icon('player_hit') or play.health <= 0:
         return
     if user == 'q':
         dashplayer(play,space)
@@ -308,7 +308,8 @@ def runstage (settings, curse = None):
 
 def resetplayer (play):
     play.location = [20,9]
-    play.model = '^'
+    play.direction = 'w'
+    play.model = icon('player_up')
     play.score = 0
     if play.bombs < 1:
         play.bombs = 1
