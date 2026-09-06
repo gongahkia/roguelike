@@ -1,4 +1,4 @@
-# `Crypt`
+# `Roag`
 
 ## Abstract
 
@@ -7,3 +7,7 @@ This is the final iteration of a small roguelike game I worked on over the span 
 ## Usage 
 
 To try it, download all the files within this folder, make sure they're in the same file directory, and run `input.py`. Make sure you have Python3 or later versions installed!
+
+## Reference
+
+[Rogue (1980)](https://en.wikipedia.org/wiki/Rogue_(video_game)). Duh.
