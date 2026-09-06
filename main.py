@@ -1,5 +1,5 @@
 from titlescreen import titlescreen
-from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, torch, door, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, dashplayer, activateward, tickplayerabilities, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, lightcoordinates, fogdict, mapdict, printgameframe, hudlines, promptinput, threatconlvl, runshop
+from functions import BOARDHEIGHT, BOARDWIDTH, player, bullet, bomb, torch, door, ammo, target, necromancer, boss, randomlocation, generatespace, moveplayer, dashplayer, activateward, tickplayerabilities, attackplayer, bombcoordinates, destroyterrain, bosshitbox, updateboss, updatedict, visiblecoordinates, lightcoordinates, fogdict, mapdict, printgameframe, hudlines, promptinput, threatconlvl, runcurseshop, runshop
 
 
 #GAME SETTINGS
@@ -28,10 +28,10 @@ def continuestage (level):
         threatconlvl(level)
         acknowledgement = promptinput('[Y to continue/N to leave]: ')
         if acknowledgement == 'y':
-            return True
+            return runcurseshop()
         if acknowledgement == 'n':
             print ('Thanks for playing!')
-            return False
+            return None
 
 
 def occupiedcoordinates (play, targets, necromancers, bullets, bombs, ammopickup = None, blocked = None, torches = None):
@@ -207,7 +207,7 @@ def updatebombs (play, bombs, targets, necromancers, space, enemyboss = None, de
     return remaining,explosions
 
 
-def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5, destroyedwalls = None, scoregoal = 5, torches = None, exitdoor = None, revealed = False):
+def printgame (play, level = None, targets = None, necromancers = None, bullets = None, bombs = None, ammopickup = None, enemyboss = None, explosions = None, space = None, explored = None, vision = 5, destroyedwalls = None, scoregoal = 5, torches = None, exitdoor = None, revealed = False, curse = None):
     entitydict = updatedict(play,targets,necromancers,bullets,bombs,ammopickup,enemyboss,explosions,torches,exitdoor)
     if space is not None:
         if revealed or explored is None:
@@ -216,7 +216,7 @@ def printgame (play, level = None, targets = None, necromancers = None, bullets 
             visible = lightcoordinates(play,space,vision,bullets,bombs,torches,explosions)
             explored.update(visible)
             entitydict = fogdict(entitydict,space,visible,explored,destroyedwalls)
-    sidebar = hudlines(play,level,enemyboss,0 if bombs is None else len(bombs),scoregoal)
+    sidebar = hudlines(play,level,enemyboss,0 if bombs is None else len(bombs),scoregoal,curse)
     printgameframe(entitydict,sidebar,play.status == 'dead')
 
 
@@ -233,10 +233,10 @@ def opendoor (play, space, torches):
     return door(location)
 
 
-def exitstage (play, settings, space, torches):
+def exitstage (play, settings, space, torches, curse):
     exitdoor = opendoor(play,space,torches)
     while True:
-        printgame(play,settings['level'],space = space,scoregoal = settings['score'],torches = torches,exitdoor = exitdoor,revealed = True)
+        printgame(play,settings['level'],space = space,scoregoal = settings['score'],torches = torches,exitdoor = exitdoor,revealed = True,curse = curse)
         if play.location == exitdoor.location:
             return play
         user = promptinput('[W/A/S/D/Q]: ')
@@ -247,15 +247,25 @@ def exitstage (play, settings, space, torches):
             moveplayer(play,user,space)
 
 
-def runstage (settings):
-    play = player()
+def cursedsettings (settings, curse):
+    stage = dict(settings)
+    if curse == 'darkness':
+        stage['vision'] = max(1,stage['vision'] - 3)
+    if curse == 'hunted':
+        stage['necromancers'] += 1
+    return stage
+
+
+def runstage (settings, curse = None):
+    settings = cursedsettings(settings,curse)
+    play = player(1 if curse == 'frail_body' else 2)
     play.ammo = settings['ammo']
     play.bombs = 1
     space = generatespace(play.location)
     explored = set()
     destroyedwalls = set()
     targets,necromancers,bullets,bombs,ammopickup,torches = createstageentities(settings,play,space)
-    printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,space = space,explored = explored,vision = settings['vision'],destroyedwalls = destroyedwalls,scoregoal = settings['score'],torches = torches)
+    printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,space = space,explored = explored,vision = settings['vision'],destroyedwalls = destroyedwalls,scoregoal = settings['score'],torches = torches,curse = curse)
 
     while play.health > 0 and play.score < settings['score']:
         user = promptinput('[W/A/S/D/E/B/Q/R]: ')
@@ -268,10 +278,10 @@ def runstage (settings):
         if play.score < settings['score']:
             attackplayer(play,necromancers,space)
             ammopickup = refillstageentities(settings,play,targets,necromancers,bullets,bombs,ammopickup,space,torches)
-        printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions,space,explored,settings['vision'],destroyedwalls,settings['score'],torches)
+        printgame(play,settings['level'],targets,necromancers,bullets,bombs,ammopickup,None,explosions,space,explored,settings['vision'],destroyedwalls,settings['score'],torches,curse = curse)
     if play.health <= 0:
         return play
-    return exitstage(play,settings,space,torches)
+    return exitstage(play,settings,space,torches,curse)
 
 
 #BOSS FIGHT
@@ -371,10 +381,12 @@ def rungame (debuglevel = None):
     totscore = 0
     play = None
     for settings in STAGES:
+        curse = None
         if settings['level'] > 0:
-            if not continuestage(settings['level']):
+            curse = continuestage(settings['level'])
+            if curse is None:
                 return
-        play = runstage(settings)
+        play = runstage(settings,curse)
         if play.health <= 0:
             return
         totscore += play.score

@@ -853,10 +853,12 @@ def statbar (value, maximum):
     return f"[{'X' * filled}{'-' * (maximum - filled)}]"
 
 
-def hudlines (player, level = None, enemyboss = None, armedbombs = 0, scoregoal = 5):
+def hudlines (player, level = None, enemyboss = None, armedbombs = 0, scoregoal = 5, curse = None):
     lines = []
     if level is not None:
         lines.append(f'THREATCON: {statbar(level + 1,3)}')
+    if curse is not None:
+        lines.append(f'CURSE: {curse.replace("_"," ").upper()}')
     if enemyboss is not None:
         lines.append(f'BOSS HEALTH: {statbar(enemyboss.health,10)}')
         if enemyboss.attackcounter > 0:
@@ -873,8 +875,8 @@ def hudlines (player, level = None, enemyboss = None, armedbombs = 0, scoregoal 
     return lines
 
 
-def interface (player, level = None, enemyboss = None, armedbombs = 0, scoregoal = 5):
-    for line in hudlines(player,level,enemyboss,armedbombs,scoregoal):
+def interface (player, level = None, enemyboss = None, armedbombs = 0, scoregoal = 5, curse = None):
+    for line in hudlines(player,level,enemyboss,armedbombs,scoregoal,curse):
         for part in line.splitlines():
             print(colourtext(part.center(BOARDWIDTH),WHITE))
 
@@ -887,8 +889,8 @@ def threatconlvl (threatcon_lvl):
     lines = []
     for row in range(8):
         lines.append('')
-    lines.append('                ~NOTICE~')
-    lines.append(f'      YOU ARE MOVING TO THREATCON {statbar(threatcon_lvl + 1,3)}')
+    lines.append('               ~DESCENT~')
+    lines.append('      YOU DESCEND INTO THE DEPTHS')
     for row in range(8):
         lines.append('')
     printscreen(lines)
@@ -989,3 +991,50 @@ def runshop (num, player):
             if exitinput == 'n':
                 print ('Okay. Continue browsing.')
                 time.sleep(1.5)
+
+
+class curseshop:
+    def __init__ (self):
+        self.pointer = 0
+        self.items = [
+            ('frail_body','FRAIL BODY','BEGIN WITH ONE HEALTH'),
+            ('darkness','DARKNESS','REDUCED NATURAL VISION'),
+            ('hunted','HUNTED','ONE EXTRA NECROMANCER')
+        ]
+
+    def move (self, direction):
+        if direction == 'w':
+            self.pointer -= 1
+        if direction == 's':
+            self.pointer += 1
+        if self.pointer < 0:
+            self.pointer = 0
+        if self.pointer >= len(self.items):
+            self.pointer = len(self.items) - 1
+
+    def selected (self):
+        return self.items[self.pointer][0]
+
+    def screenlines (self):
+        lines = ['','','              ~CURSE SHOP~','     CHOOSE A BURDEN TO DESCEND','','']
+        for index,item in enumerate(self.items):
+            pointer = ' --> ' if self.pointer == index else '     '
+            lines.append(f'     {pointer} {item[1]}')
+            lines.append(f'             {item[2]}')
+            lines.append('')
+        lines.append('          [E] ACCEPTS YOUR CURSE')
+        return lines
+
+    def printscreen (self):
+        printscreen(self.screenlines())
+
+
+def runcurseshop ():
+    s = curseshop()
+    while True:
+        s.printscreen()
+        user = promptinput('[W/S/E]: ')
+        if user == 'w' or user == 's':
+            s.move(user)
+        elif user == 'e':
+            return s.selected()
