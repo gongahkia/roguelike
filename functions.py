@@ -1065,13 +1065,14 @@ class curseshop:
     def screenlines (self):
         lines = ['~CURSE SHOP~','CHOOSE A BURDEN TO DESCEND','']
         for index,item in enumerate(self.items):
-            pointer = '-->' if self.pointer == index else '   '
-            lines.append(f'{pointer} {item["name"]}')
+            label = f'[ {item["name"]} ]' if self.pointer == index else item['name']
+            lines.append(label)
             lines.append(item['description'])
             lines.append('')
         lines.append('[E] ACCEPTS YOUR CURSE')
         padding = (BOARDHEIGHT - len(lines)) // 2
-        return [''] * padding + [line.center(BOARDWIDTH) for line in lines] + [''] * padding
+        blank = ' ' * BOARDWIDTH
+        return [blank] * padding + [line.center(BOARDWIDTH) for line in lines] + [blank] * padding
 
     def printscreen (self):
         printscreen(self.screenlines())
