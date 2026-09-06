@@ -46,6 +46,8 @@ ASCIIICONS = {
     'curse': '',
     'boss': '',
     'health': '',
+    'hud_ammo': '',
+    'hud_bombs': '',
     'score': '',
     'dash': '',
     'ward': '',
@@ -77,6 +79,8 @@ NERDICONS = {
     'curse': '\uf188',
     'boss': '\uf188',
     'health': '\uf004',
+    'hud_ammo': '\uf135',
+    'hud_bombs': '\uf1e2',
     'score': '\uf005',
     'dash': '\uf0e7',
     'ward': '\uf132',
@@ -134,7 +138,10 @@ def terminalfont ():
     except OSError:
         return None
     finally:
-        termios.tcsetattr(filedescriptor,termios.TCSADRAIN,oldsettings)
+        try:
+            termios.tcsetattr(filedescriptor,termios.TCSADRAIN,oldsettings)
+        except OSError:
+            pass
 
     match = re.search(rb'\033\]50;([^\033\a]*)(?:\a|\033\\)',response)
     if match is None:
@@ -1087,8 +1094,8 @@ def hudlines (player, level = None, enemyboss = None, armedbombs = 0, scoregoal 
         if enemyboss.attackcounter > 0:
             lines.append(iconlabel('attack_charge',f'BOSS WINDUP: {enemyboss.attackname}'))
     lines.append(iconlabel('health',f'HEALTH: {statbar(player.health,5)}'))
-    lines.append(iconlabel('shop_ammo',f'AMMO: {statbar(player.ammo,5)}'))
-    lines.append(iconlabel('shop_bombs',f'BOMBS: {statbar(player.bombs,5)}  ARMED: {statbar(armedbombs,3)}'))
+    lines.append(iconlabel('hud_ammo',f'AMMO: {statbar(player.ammo,5)}'))
+    lines.append(iconlabel('hud_bombs',f'BOMBS: {statbar(player.bombs,5)}  ARMED: {statbar(armedbombs,3)}'))
     lines.append(iconlabel('score',f'SCORE: {statbar(player.score,scoregoal)}'))
     dashstatus = 'READY' if player.dashcooldown == 0 else 'RECHARGING'
     wardstatus = 'ACTIVE' if player.wardactive else 'READY' if player.wardcooldown == 0 else 'RECHARGING'
@@ -1112,7 +1119,8 @@ def threatconlvl (threatcon_lvl):
     lines = []
     for row in range(8):
         lines.append('')
-    lines.append(iconlabel('door','~DESCENT~').center(BOARDWIDTH))
+    descent = iconlabel('door','~DESCENT~')
+    lines.append(descent.center(BOARDWIDTH) if ICONTHEME == 'nerd' else '               ~DESCENT~')
     lines.append('      YOU DESCEND INTO THE DEPTHS')
     for row in range(8):
         lines.append('')
